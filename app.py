@@ -1,6 +1,7 @@
 import streamlit as st
 import os
 from dotenv import load_dotenv
+from parser.semantic_classifier import generate_radar_chart, zero_shot_skill_scores
 from utils.pdf_parser import extract_text_from_pdf
 from utils.llm_parser import parse_resume_with_ollama, format_document_display, show_ollama_status, show_model_recommendations, get_available_ollama_models
 from utils.json_formatter import safe_json_dumps
@@ -30,6 +31,14 @@ def load_css():
 
 # Create uploads directory if it doesn't exist
 os.makedirs("uploads", exist_ok=True)
+
+CANDIDATE_LABELS = [
+    "Python", "C++", "Machine Learning", "Deep Learning",
+    "Cloud", "Azure", "AWS", "Communication",
+    "Leadership", "Research", "Data Analysis",
+    "Teamwork", "Web Development", "Frontend",
+    "Backend", "DevOps"
+]
 
 def main():
     # Header
@@ -312,6 +321,29 @@ def main():
                     st.download_button("📥 Summary JSON", safe_json_dumps({"summary": summary_text}), file_name="summary.json", mime="application/json")
                 else:
                     st.button("📥 Summary JSON", disabled=True)
+
+            st.subheader("📊 Semantic Skill Classification (BART MNLI)")
+            if st.session_state.get('raw_text'):
+                skill_table_col, chart_col = st.columns(2)
+                try:
+                    with st.spinner("Running zero-shot skill classification..."):
+                        scores = zero_shot_skill_scores(st.session_state.raw_text, CANDIDATE_LABELS)
+                    skill_pairs = list(zip(scores.get("labels", []), scores.get("scores", [])))
+                    skill_pairs.sort(key=lambda item: item[1], reverse=True)
+
+                    with skill_table_col:
+                        st.markdown("**Ranked skills**")
+                        st.table([{"Skill": label, "Confidence": f"{score:.2f}"} for label, score in skill_pairs])
+
+                    if skill_pairs:
+                        chart_labels, chart_scores = zip(*skill_pairs)
+                        with chart_col:
+                            chart_path = generate_radar_chart(list(chart_labels), list(chart_scores))
+                            st.image(chart_path, caption="Skill confidence radar", use_column_width=True)
+                except Exception as e:
+                    st.error(f"Semantic skill classification unavailable: {e}")
+            else:
+                st.info("Semantic skill classification will appear after parsing the resume text.")
             
             # Show Q&A section for document analysis
             qa_available = (
