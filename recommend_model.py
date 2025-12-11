@@ -57,19 +57,19 @@ def test_model_speed(model_name: str, test_text: str = "Hello, how are you?") ->
 def recommend_model_for_document(doc_size: int) -> Dict:
     """Recommend best model based on document size and available models."""
     
-    # Model recommendations based on size and speed
+    # Model recommendations based on size - simplified to two models
     size_recommendations = {
         "small": {  # < 2000 chars
-            "preferred": ["phi3:mini", "gemma2:2b", "llama3.2:3b"],
-            "description": "Fast models for small documents"
+            "preferred": ["phi3:mini", "llama3.2:3b"],
+            "description": "Fast model for small documents"
         },
         "medium": {  # 2000-10000 chars
-            "preferred": ["llama3.2:3b", "phi3:mini", "mistral:7b"],
-            "description": "Balanced models for medium documents"
+            "preferred": ["llama3.2:3b", "phi3:mini"],
+            "description": "Balanced model for medium documents"
         },
         "large": {  # > 10000 chars
-            "preferred": ["llama3.2:3b", "llama3.1:8b", "mistral:7b"],
-            "description": "Capable models for large documents"
+            "preferred": ["llama3.2:3b", "phi3:mini"],
+            "description": "Capable model for large documents"
         }
     }
     
@@ -126,9 +126,8 @@ def main():
     if not available_models:
         print("❌ No models installed")
         print("\n📥 Install a recommended model:")
-        print("• ollama pull phi3:mini        # Fastest (3.8GB)")
-        print("• ollama pull llama3.2:3b      # Balanced (2GB)")
-        print("• ollama pull gemma2:2b        # Lightweight (1.6GB)")
+        print("• ollama pull phi3:mini        # Fastest (2.2GB)")
+        print("• ollama pull llama3.2:3b      # Balanced (2.0GB)")
         return
     
     print(f"\n📋 Available Models ({len(available_models)}):")
@@ -168,7 +167,7 @@ def main():
     
     print(f"\n💡 Quick Tips:")
     print(f"• For resumes (2-5K chars): Use phi3:mini or llama3.2:3b")
-    print(f"• For long documents (10K+ chars): Use llama3.2:3b or llama3.1:8b")
+    print(f"• For long documents (10K+ chars): Use llama3.2:3b")
     print(f"• If getting timeouts: Try phi3:mini (fastest model)")
     print(f"• Install models: ollama pull <model-name>")
 

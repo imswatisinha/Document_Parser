@@ -9,6 +9,8 @@ from sentence_transformers import SentenceTransformer
 import hashlib
 from datetime import datetime, timedelta
 import json
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from functools import lru_cache
 
 from config.settings import get_config
 from core.exceptions import ExternalAPIError, ValidationError, handle_errors
@@ -53,37 +55,39 @@ class RAGService:
                 raise ExternalAPIError("SentenceTransformer", None, f"Model loading failed: {str(e)}")
     
     def _initialize_pinecone(self):
-        """Initialize Pinecone client and index."""
+        """Initialize Pinecone client and index (v5+ API)."""
         if self._pinecone_client is None and self.config.pinecone.enabled:
             try:
-                import pinecone
+                from pinecone import Pinecone as PineconeClient
                 
                 # Get API key securely
                 api_key = self.security.get_api_key('PINECONE_API_KEY')
                 if not api_key:
                     logger.warning("Pinecone API key not found, disabling Pinecone functionality")
+                    self.config.pinecone.enabled = False
                     return False
                 
-                # Initialize Pinecone
-                pinecone.init(
-                    api_key=api_key,
-                    environment=self.config.pinecone.environment
-                )
+                # Initialize Pinecone client (v5+ API)
+                self._pinecone_client = PineconeClient(api_key=api_key)
                 
                 # Connect to index
-                if self.config.pinecone.index_name in pinecone.list_indexes():
-                    self._index = pinecone.Index(self.config.pinecone.index_name)
+                try:
+                    self._index = self._pinecone_client.Index(self.config.pinecone.index_name)
                     logger.info(f"Connected to Pinecone index: {self.config.pinecone.index_name}")
                     return True
-                else:
-                    logger.warning(f"Pinecone index '{self.config.pinecone.index_name}' not found")
+                except Exception as e:
+                    logger.warning(f"Pinecone index '{self.config.pinecone.index_name}' not found or error: {str(e)}")
+                    # Try to create index if it doesn't exist (optional)
+                    logger.info("Pinecone will be initialized when first used")
                     return False
                     
             except ImportError:
                 logger.warning("Pinecone library not installed, disabling Pinecone functionality")
+                self.config.pinecone.enabled = False
                 return False
             except Exception as e:
                 logger.error(f"Failed to initialize Pinecone: {str(e)}")
+                self.config.pinecone.enabled = False
                 return False
         
         return self._index is not None
@@ -92,11 +96,11 @@ class RAGService:
     @log_performance(threshold_seconds=5.0)
     def generate_embedding(self, text: str, cache_key: str = None) -> np.ndarray:
         """
-        Generate embedding for text.
+        Generate embedding for text with enhanced caching.
         
         Args:
             text: Text to embed
-            cache_key: Optional cache key for reusing embeddings
+            cache_key: Optional cache key for reusing embeddings (auto-generated if None)
             
         Returns:
             Embedding vector as numpy array
@@ -104,13 +108,17 @@ class RAGService:
         if not text or not text.strip():
             raise ValidationError("Empty text provided for embedding generation")
         
+        # Auto-generate cache key if not provided
+        if cache_key is None:
+            cache_key = hashlib.md5(text.encode()).hexdigest()
+        
         # Check cache first
-        if cache_key:
-            cached_embedding = self._get_cached_embedding(cache_key)
-            if cached_embedding is not None:
-                self._stats["cache_hits"] += 1
-                return cached_embedding
-            self._stats["cache_misses"] += 1
+        cached_embedding = self._get_cached_embedding(cache_key)
+        if cached_embedding is not None:
+            self._stats["cache_hits"] += 1
+            logger.debug(f"Cache hit for embedding: {cache_key[:8]}...")
+            return cached_embedding
+        self._stats["cache_misses"] += 1
         
         # Initialize model if needed
         self._initialize_embedding_model()
@@ -120,8 +128,7 @@ class RAGService:
             embedding = self.embedding_model.encode(text, convert_to_numpy=True)
             
             # Cache the result
-            if cache_key:
-                self._cache_embedding(cache_key, embedding)
+            self._cache_embedding(cache_key, embedding)
             
             self._stats["embeddings_generated"] += 1
             
@@ -145,8 +152,68 @@ class RAGService:
                 del self._embedding_cache[cache_key]
         return None
     
+    def generate_embeddings_batch(self, texts: List[str], cache_keys: List[str] = None) -> List[np.ndarray]:
+        """
+        Generate embeddings for multiple texts in batch (optimized).
+        
+        Args:
+            texts: List of texts to embed
+            cache_keys: Optional list of cache keys (auto-generated if None)
+            
+        Returns:
+            List of embedding vectors
+        """
+        if not texts:
+            return []
+        
+        # Auto-generate cache keys if not provided
+        if cache_keys is None:
+            cache_keys = [hashlib.md5(text.encode()).hexdigest() for text in texts]
+        
+        # Check cache for all texts
+        embeddings = []
+        texts_to_embed = []
+        keys_to_embed = []
+        indices_to_embed = []
+        
+        for i, (text, cache_key) in enumerate(zip(texts, cache_keys)):
+            cached = self._get_cached_embedding(cache_key)
+            if cached is not None:
+                embeddings.append((i, cached))
+                self._stats["cache_hits"] += 1
+            else:
+                texts_to_embed.append(text)
+                keys_to_embed.append(cache_key)
+                indices_to_embed.append(i)
+                self._stats["cache_misses"] += 1
+        
+        # Generate embeddings for uncached texts in batch
+        if texts_to_embed:
+            self._initialize_embedding_model()
+            try:
+                batch_embeddings = self.embedding_model.encode(
+                    texts_to_embed, 
+                    convert_to_numpy=True,
+                    batch_size=32,  # Optimize batch size
+                    show_progress_bar=False
+                )
+                
+                # Cache and store results
+                for idx, key, emb in zip(indices_to_embed, keys_to_embed, batch_embeddings):
+                    self._cache_embedding(key, emb)
+                    embeddings.append((idx, emb))
+                    self._stats["embeddings_generated"] += 1
+                    
+            except Exception as e:
+                logger.error(f"Batch embedding generation failed: {str(e)}")
+                raise ExternalAPIError("SentenceTransformer", None, f"Batch embedding failed: {str(e)}")
+        
+        # Sort by original index and return
+        embeddings.sort(key=lambda x: x[0])
+        return [emb for _, emb in embeddings]
+    
     def _cache_embedding(self, cache_key: str, embedding: np.ndarray):
-        """Cache embedding with TTL."""
+        """Cache embedding with TTL and LRU eviction."""
         # Remove oldest entries if cache is full
         if len(self._embedding_cache) >= self._cache_max_size:
             oldest_key = min(self._embedding_cache.keys(), 
@@ -197,8 +264,8 @@ class RAGService:
             if metadata:
                 store_metadata.update(metadata)
             
-            # Store in Pinecone
-            self._index.upsert([{
+            # Store in Pinecone (single vector) - v5+ API
+            self._index.upsert(vectors=[{
                 'id': document_id,
                 'values': embedding.tolist(),
                 'metadata': store_metadata
@@ -212,6 +279,75 @@ class RAGService:
         except Exception as e:
             logger.error(f"Failed to store document embedding: {str(e)}")
             return False
+    
+    @log_function_calls(include_args=False)
+    @log_performance(threshold_seconds=30.0)
+    def store_documents_batch(
+        self,
+        documents: List[Dict[str, Any]],
+        batch_size: int = 100
+    ) -> Dict[str, bool]:
+        """
+        Store multiple document embeddings in batch (optimized).
+        
+        Args:
+            documents: List of dicts with keys: 'id', 'text', 'metadata'
+            batch_size: Number of vectors to upsert per batch
+            
+        Returns:
+            Dict mapping document_id to success status
+        """
+        if not self._initialize_pinecone():
+            logger.warning("Pinecone not available, skipping batch storage")
+            return {doc['id']: False for doc in documents}
+        
+        results = {}
+        
+        try:
+            # Generate embeddings in batch
+            texts = [doc['text'] for doc in documents]
+            cache_keys = [f"doc_{hashlib.md5(text.encode()).hexdigest()}" for text in texts]
+            embeddings = self.generate_embeddings_batch(texts, cache_keys)
+            
+            # Prepare vectors for Pinecone
+            vectors = []
+            for doc, embedding in zip(documents, embeddings):
+                store_metadata = {
+                    'text_preview': doc['text'][:500],
+                    'text_length': len(doc['text']),
+                    'timestamp': datetime.now().isoformat(),
+                    'document_type': 'resume'
+                }
+                if doc.get('metadata'):
+                    store_metadata.update(doc['metadata'])
+                
+                vectors.append({
+                    'id': doc['id'],
+                    'values': embedding.tolist(),
+                    'metadata': store_metadata
+                })
+            
+            # Batch upsert to Pinecone
+            for i in range(0, len(vectors), batch_size):
+                batch = vectors[i:i + batch_size]
+                self._index.upsert(vectors=batch)
+                self._stats["pinecone_operations"] += len(batch)
+                
+                # Mark all in batch as successful
+                for vec in batch:
+                    results[vec['id']] = True
+                
+                logger.debug(f"Batch upserted {len(batch)} vectors to Pinecone")
+            
+            logger.info(f"Batch stored {len(documents)} document embeddings")
+            return results
+            
+        except Exception as e:
+            logger.error(f"Failed to batch store documents: {str(e)}")
+            # Mark all as failed
+            for doc in documents:
+                results[doc['id']] = False
+            return results
     
     @log_function_calls(include_args=False)
     @log_performance(threshold_seconds=10.0)

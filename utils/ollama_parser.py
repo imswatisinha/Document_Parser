@@ -20,11 +20,13 @@ class OllamaParser:
     
     def check_connection(self) -> bool:
         """Check if Ollama is running and get available models."""
+        supported_models = ["phi3:mini", "llama3.2:3b"]
         try:
             response = requests.get(f"{self.base_url}/api/tags", timeout=5)
             if response.status_code == 200:
                 models_data = response.json()
-                self.available_models = [model['name'] for model in models_data.get('models', [])]
+                all_models = [model['name'] for model in models_data.get('models', [])]
+                self.available_models = [m for m in all_models if m in supported_models]
                 return True
             return False
         except Exception as e:
@@ -35,22 +37,18 @@ class OllamaParser:
         return len(self.available_models) > 0
     
     def get_recommended_models(self) -> List[str]:
-        """Get list of recommended models for resume parsing."""
+        """Get list of recommended models for resume parsing - simplified to two models."""
         recommended = [
-            "llama3.2:3b",      # Latest, fast, good quality
-            "llama3.1:8b",      # High quality, needs more RAM  
-            "llama2:7b",        # Stable, widely used
-            "mistral:7b",       # Fast and efficient
-            "phi3:mini",        # Microsoft, very fast
-            "gemma2:2b",        # Google, lightweight
+            "llama3.2:3b",      # High quality, good for most documents
+            "phi3:mini",        # Fast, good for simple documents
         ]
         
         # Return only models that are available
         available_recommended = [model for model in recommended if model in self.available_models]
         
-        # If no recommended models, return first few available
+        # If no recommended models, return first available
         if not available_recommended and self.available_models:
-            available_recommended = self.available_models[:3]
+            available_recommended = self.available_models[:1]
         
         return available_recommended
     
@@ -270,7 +268,7 @@ class OllamaParser:
                 "error": "⏰ Processing timed out after 5 minutes. This can happen with very large documents or complex resumes.",
                 "suggestions": [
                     "Try a smaller/simpler document first to test the system",
-                    "Use a faster model like 'phi3:mini' or 'gemma2:2b'", 
+                    "Use a faster model like 'phi3:mini'", 
                     "Check if Ollama is running properly: run 'ollama list' in terminal",
                     "Make sure your system has enough memory for the model"
                 ],
@@ -320,8 +318,8 @@ class OllamaParser:
                 "setup_required": True
             }
         
-        # Order models by memory safety (safest first)
-        model_safety_order = ["gemma2:2b", "llama3.2:1b", "phi3:mini", "llama3.2:3b", "mistral:7b", "llama3.1:8b"]
+        # Order models by memory safety (safest first) - simplified to two models
+        model_safety_order = ["phi3:mini", "llama3.2:3b"]
         
         # Create ordered list of models to try
         models_to_try = []
@@ -386,7 +384,7 @@ class OllamaParser:
             "attempts": attempts,
             "suggestions": [
                 "Your system may need more RAM to run these models",
-                "Try installing a smaller model: ollama pull gemma2:2b",
+                "Try installing phi3:mini: ollama pull phi3:mini",
                 "Close other applications to free up memory",
                 "Restart Ollama service: ollama serve",
                 "Consider splitting large documents into smaller sections"
@@ -579,7 +577,7 @@ def create_ollama_setup_guide():
         
         # Quick install buttons for recommended models
         st.sidebar.write("**Quick Install (if Ollama is running):**")
-        recommended = ["llama3.2:3b", "phi3:mini", "gemma2:2b"]
+        recommended = ["llama3.2:3b", "phi3:mini"]
         
         for model in recommended:
             if st.sidebar.button(f"📥 Install {model}"):

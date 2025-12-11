@@ -38,11 +38,13 @@ class OllamaRAGRetriever:
     
     def check_ollama_connection(self):
         """Check if Ollama is running and get available models."""
+        supported_models = ["phi3:mini", "llama3.2:3b"]
         try:
             response = requests.get(f"{self.ollama_url}/api/tags", timeout=5)
             if response.status_code == 200:
                 models_data = response.json()
-                self.available_models = [model['name'] for model in models_data.get('models', [])]
+                all_models = [model['name'] for model in models_data.get('models', [])]
+                self.available_models = [m for m in all_models if m in supported_models]
                 if self.available_models:
                     self.selected_model = self.available_models[0]  # Use first available model
                 return True
@@ -314,7 +316,7 @@ class OllamaRAGRetriever:
                         "max_tokens": 300
                     }
                 },
-                timeout=60
+                timeout=180
             )
             
             if response.status_code == 200:

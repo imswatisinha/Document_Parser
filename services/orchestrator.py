@@ -114,14 +114,17 @@ class ResumeParserOrchestrator:
             # Update progress
             self._update_progress(progress_callback, "Preparing document for analysis", 0.3)
             
-            # Step 3: Prepare document chunks (if needed)
+            # Step 3: Prepare document chunks (optimized - only chunk if needed)
             chunk_data = None
-            if doc_analysis.complexity_score > 0.7:  # For complex documents
+            # Only chunk if document is large enough to benefit from chunking
+            if len(combined_text) > 5000 and doc_analysis.complexity_score > 0.7:
                 chunk_data = self.document_service.preprocess_for_chunking(
                     combined_text, 
                     max_chunk_size=options.get('chunk_size', 2000)
                 )
                 logger.info(f"Document chunked into {len(chunk_data)} segments")
+            else:
+                logger.debug(f"Skipping chunking for small document ({len(combined_text)} chars)")
             
             # Update progress
             self._update_progress(progress_callback, "Running AI analysis", 0.4)

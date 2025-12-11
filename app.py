@@ -12,7 +12,7 @@ from utils.pinecone_vector_store import PineconeVectorStore, setup_pinecone_inte
 
 # Page configuration
 st.set_page_config(
-    page_title="Resume Parser LLM",
+    page_title="Document Parser LLM",
     page_icon="📄",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -105,12 +105,12 @@ def main():
     col1, col2 = st.columns([1, 2])
     
     with col1:
-        st.header("📁 Upload Resume")
+        st.header("📁 Upload Document")
         
         uploaded_file = st.file_uploader(
             "Choose a PDF file", 
             type=["pdf"],
-            help="Upload a resume in PDF format"
+            help="Upload a document in PDF format"
         )
         
         if uploaded_file is not None:

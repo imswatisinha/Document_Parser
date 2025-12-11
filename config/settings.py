@@ -12,19 +12,17 @@ from pathlib import Path
 class OllamaConfig:
     """Configuration for Ollama service integration."""
     base_url: str = "http://localhost:11434"
-    timeout: int = 30
+    timeout: int = 180
     max_retries: int = 3
     default_models: List[str] = field(default_factory=lambda: [
         "llama3.2:3b", 
-        "phi3:mini", 
-        "gemma2:2b", 
-        "llama3.1:8b"
+        "phi3:mini"
     ])
     recommended_models: Dict[str, List[str]] = field(default_factory=lambda: {
-        "small_docs": ["phi3:mini", "gemma2:2b"],
+        "small_docs": ["phi3:mini"],
         "medium_docs": ["llama3.2:3b"],
-        "large_docs": ["llama3.1:8b"],
-        "technical_docs": ["llama3.2:3b", "llama3.1:8b"]
+        "large_docs": ["llama3.2:3b"],
+        "technical_docs": ["llama3.2:3b"]
     })
 
 @dataclass
@@ -35,7 +33,8 @@ class PineconeConfig:
     index_name: str = "resume-parser"
     dimension: int = 1536
     metric: str = "cosine"
-    timeout: int = 60
+    timeout: int = 120
+    enabled: bool = True  # Enable Pinecone by default if API key is provided
 
 @dataclass
 class ProcessingConfig:
@@ -146,6 +145,10 @@ class AppConfig:
         # Pinecone overrides
         if os.getenv("PINECONE_API_KEY"):
             self.pinecone.api_key = os.getenv("PINECONE_API_KEY")
+            self.pinecone.enabled = True  # Auto-enable if API key is provided
+        
+        if os.getenv("PINECONE_ENABLED"):
+            self.pinecone.enabled = os.getenv("PINECONE_ENABLED").lower() == "true"
         
         if os.getenv("PINECONE_ENVIRONMENT"):
             self.pinecone.environment = os.getenv("PINECONE_ENVIRONMENT")

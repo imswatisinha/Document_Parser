@@ -124,14 +124,7 @@ class UIService:
     
     def _get_available_models(self) -> List[str]:
         """Get list of available AI models."""
-        try:
-            from services.model_service import get_model_service
-            model_service = get_model_service()
-            models = model_service.get_available_models()
-            return models if models else ["llama2", "codellama", "mistral"]
-        except Exception as e:
-            logger.warning(f"Failed to get available models: {str(e)}")
-            return ["llama2", "codellama", "mistral"]
+        return ["phi3:mini", "llama3.2:3b"]
     
     def _render_service_status(self):
         """Render service health status in sidebar."""

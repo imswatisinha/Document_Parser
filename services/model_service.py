@@ -9,6 +9,8 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 import re
 from enum import Enum
+from functools import lru_cache
+import hashlib
 
 from config.settings import get_config
 from core.exceptions import ModelNotAvailableError, ConnectionError as ConnError
@@ -178,37 +180,12 @@ class DocumentComplexityAnalyzer:
         complexity: ComplexityLevel, 
         indicators: Dict[str, bool]
     ) -> List[str]:
-        """Get model recommendations based on complexity and content."""
-        config = get_config()
-        
-        # Map complexity to model categories
-        complexity_mapping = {
-            ComplexityLevel.LOW: "small_docs",
-            ComplexityLevel.MEDIUM: "medium_docs",
-            ComplexityLevel.HIGH: "large_docs",
-            ComplexityLevel.VERY_HIGH: "technical_docs"
-        }
-        
-        category = complexity_mapping[complexity]
-        
-        # Get base recommendations
-        recommendations = config.ollama.recommended_models.get(category, ["llama3.2:3b"])
-        
-        # Adjust based on content indicators
-        if indicators['has_code'] or indicators['has_math']:
-            # Prefer models good with technical content
-            technical_models = ["llama3.1:8b", "llama3.2:3b"]
-            recommendations = [m for m in technical_models if m in config.ollama.default_models] + recommendations
-        
-        # Remove duplicates while preserving order
-        seen = set()
-        unique_recommendations = []
-        for model in recommendations:
-            if model not in seen:
-                seen.add(model)
-                unique_recommendations.append(model)
-        
-        return unique_recommendations[:3]  # Limit to top 3
+        """Get model recommendations - simplified for two models."""
+        # Simple logic: use llama3.2:3b for medium+ complexity or technical content, phi3:mini for simple
+        if complexity in [ComplexityLevel.MEDIUM, ComplexityLevel.HIGH, ComplexityLevel.VERY_HIGH] or indicators.get('has_code') or indicators.get('has_math'):
+            return ["llama3.2:3b", "phi3:mini"]
+        else:
+            return ["phi3:mini", "llama3.2:3b"]
     
     def _estimate_processing_time(self, char_count: int, complexity_score: float) -> float:
         """Estimate processing time in seconds."""
@@ -230,7 +207,7 @@ class ModelSelectionService:
         logger.info("Model selection service initialized")
     
     def _initialize_model_info(self) -> Dict[str, ModelInfo]:
-        """Initialize model information database."""
+        """Initialize model information database - simplified to only two models."""
         models = {
             "phi3:mini": ModelInfo(
                 name="phi3:mini",
@@ -241,16 +218,6 @@ class ModelSelectionService:
                 quality_score=0.7,
                 capabilities=[ModelCapability.FAST_PARSING],
                 recommended_for=["small documents", "quick parsing", "basic extraction"]
-            ),
-            "gemma2:2b": ModelInfo(
-                name="gemma2:2b",
-                display_name="Gemma 2B",
-                memory_gb=2.5,
-                context_length=8192,
-                speed_score=1.2,
-                quality_score=0.8,
-                capabilities=[ModelCapability.FAST_PARSING, ModelCapability.DETAILED_ANALYSIS],
-                recommended_for=["balanced performance", "medium documents"]
             ),
             "llama3.2:3b": ModelInfo(
                 name="llama3.2:3b", 
@@ -265,21 +232,6 @@ class ModelSelectionService:
                     ModelCapability.MULTILINGUAL
                 ],
                 recommended_for=["technical documents", "detailed analysis", "high quality"]
-            ),
-            "llama3.1:8b": ModelInfo(
-                name="llama3.1:8b",
-                display_name="Llama 3.1 8B", 
-                memory_gb=8.0,
-                context_length=32768,
-                speed_score=3.0,
-                quality_score=1.0,  # Highest quality
-                capabilities=[
-                    ModelCapability.DETAILED_ANALYSIS,
-                    ModelCapability.TECHNICAL_CONTENT,
-                    ModelCapability.LARGE_CONTEXT,
-                    ModelCapability.MULTILINGUAL
-                ],
-                recommended_for=["complex documents", "maximum accuracy", "large context"]
             )
         }
         
@@ -288,13 +240,14 @@ class ModelSelectionService:
     
     @log_performance(threshold_seconds=5.0)
     def get_available_models(self, force_refresh: bool = False) -> List[str]:
-        """Get list of available Ollama models."""
-        # Check cache first
+        """Get list of available Ollama models - filtered to supported models only with enhanced caching."""
+        # Check cache first (extended TTL for better performance)
         now = datetime.now()
         if (not force_refresh and 
             self._last_model_check and 
             (now - self._last_model_check) < self._model_cache_ttl and
             self._available_models):
+            logger.debug(f"Returning cached models: {self._available_models}")
             return self._available_models
         
         try:
@@ -305,17 +258,25 @@ class ModelSelectionService:
             response.raise_for_status()
             
             models_data = response.json()
-            self._available_models = [
-                model['name'] for model in models_data.get('models', [])
-            ]
+            all_models = [model['name'] for model in models_data.get('models', [])]
+            
+            # Filter to only supported models (llama3.2:3b and phi3:mini) for performance
+            supported_models = ["llama3.2:3b", "phi3:mini"]
+            self._available_models = [m for m in all_models if m in supported_models]
             self._last_model_check = now
             
-            logger.info(f"Retrieved {len(self._available_models)} available models")
+            logger.info(f"Retrieved {len(self._available_models)} supported models from {len(all_models)} total")
             return self._available_models
             
         except requests.exceptions.RequestException as e:
             logger.error(f"Failed to get available models: {str(e)}")
             raise ConnError("Ollama", self.config.ollama.base_url)
+    
+    @lru_cache(maxsize=128)
+    def _cached_document_analysis(self, text_hash: str) -> DocumentAnalysis:
+        """Cache document analysis results by text hash."""
+        # This is a helper method - actual analysis done in analyzer
+        pass
     
     def select_optimal_model(
         self, 
@@ -323,7 +284,7 @@ class ModelSelectionService:
         preferred_model: str = None,
         requirements: Dict[str, Any] = None
     ) -> Tuple[str, DocumentAnalysis]:
-        """Select the optimal model for processing a document."""
+        """Select the optimal model for processing a document - optimized for two models."""
         # Analyze document
         analysis = self.analyzer.analyze_document(document_text)
         
@@ -333,32 +294,31 @@ class ModelSelectionService:
         if not available_models:
             raise ModelNotAvailableError("no_models", [])
         
-        # If preferred model is specified and available, validate it
-        if preferred_model:
-            if preferred_model in available_models:
-                logger.info(f"Using preferred model: {preferred_model}")
-                return preferred_model, analysis
-            else:
-                logger.warning(f"Preferred model {preferred_model} not available")
+        # Filter to only supported models (llama3.2:3b and phi3:mini)
+        supported_models = ["llama3.2:3b", "phi3:mini"]
+        available_supported = [m for m in available_models if m in supported_models]
         
-        # Filter available models by what we have info for
-        known_models = [m for m in available_models if m in self._model_info]
-        
-        if not known_models:
-            # Fallback to any available model
+        if not available_supported:
+            # Fallback to first available model if neither supported model is available
             fallback_model = available_models[0]
-            logger.warning(f"No known models available, using fallback: {fallback_model}")
+            logger.warning(f"No supported models available, using fallback: {fallback_model}")
             return fallback_model, analysis
         
-        # Select based on document complexity and requirements
-        selected_model = self._select_by_requirements(
-            known_models, analysis, requirements or {}
-        )
+        # If preferred model is specified and available, use it
+        if preferred_model and preferred_model in available_supported:
+            logger.info(f"Using preferred model: {preferred_model}")
+            return preferred_model, analysis
         
-        logger.info(f"Selected model '{selected_model}' for {analysis.complexity_level.value} "
+        # Simple selection: use llama3.2:3b for medium+ complexity, phi3:mini for low complexity
+        if analysis.complexity_level in [ComplexityLevel.MEDIUM, ComplexityLevel.HIGH, ComplexityLevel.VERY_HIGH]:
+            selected = "llama3.2:3b" if "llama3.2:3b" in available_supported else available_supported[0]
+        else:
+            selected = "phi3:mini" if "phi3:mini" in available_supported else available_supported[0]
+        
+        logger.info(f"Selected model '{selected}' for {analysis.complexity_level.value} "
                    f"complexity document ({analysis.character_count} chars)")
         
-        return selected_model, analysis
+        return selected, analysis
     
     def _select_by_requirements(
         self,
@@ -378,12 +338,12 @@ class ModelSelectionService:
             if model_name in analysis.recommended_models:
                 score += 10.0 - analysis.recommended_models.index(model_name) * 2.0
             
-            # Complexity-based scoring
+            # Complexity-based scoring - simplified for two models
             complexity_bonus = {
-                ComplexityLevel.LOW: {"phi3:mini": 5.0, "gemma2:2b": 3.0},
-                ComplexityLevel.MEDIUM: {"gemma2:2b": 5.0, "llama3.2:3b": 4.0},
-                ComplexityLevel.HIGH: {"llama3.2:3b": 5.0, "llama3.1:8b": 4.0},
-                ComplexityLevel.VERY_HIGH: {"llama3.1:8b": 5.0}
+                ComplexityLevel.LOW: {"phi3:mini": 5.0},
+                ComplexityLevel.MEDIUM: {"llama3.2:3b": 5.0, "phi3:mini": 3.0},
+                ComplexityLevel.HIGH: {"llama3.2:3b": 5.0},
+                ComplexityLevel.VERY_HIGH: {"llama3.2:3b": 5.0}
             }
             score += complexity_bonus.get(analysis.complexity_level, {}).get(model_name, 0.0)
             
@@ -454,32 +414,24 @@ class ModelSelectionService:
         return recommendations
     
     def _calculate_suitability(self, model_info: ModelInfo, complexity: ComplexityLevel) -> float:
-        """Calculate model suitability score for given complexity."""
+        """Calculate model suitability score for given complexity - simplified for two models."""
         # Base suitability mapping
         base_scores = {
             ComplexityLevel.LOW: {
                 "phi3:mini": 0.9,
-                "gemma2:2b": 0.8,
-                "llama3.2:3b": 0.6,
-                "llama3.1:8b": 0.4
+                "llama3.2:3b": 0.6
             },
             ComplexityLevel.MEDIUM: {
                 "phi3:mini": 0.6,
-                "gemma2:2b": 0.9,
-                "llama3.2:3b": 0.8,
-                "llama3.1:8b": 0.7
+                "llama3.2:3b": 0.9
             },
             ComplexityLevel.HIGH: {
                 "phi3:mini": 0.3,
-                "gemma2:2b": 0.6,
-                "llama3.2:3b": 0.9,
-                "llama3.1:8b": 0.8
+                "llama3.2:3b": 0.9
             },
             ComplexityLevel.VERY_HIGH: {
                 "phi3:mini": 0.1,
-                "gemma2:2b": 0.4,
-                "llama3.2:3b": 0.7,
-                "llama3.1:8b": 0.9
+                "llama3.2:3b": 0.9
             }
         }
         

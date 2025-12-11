@@ -3,11 +3,13 @@ import json
 import requests
 from typing import Any, Dict, Optional
 
+# Configuration - fallback providers are optional
+ENABLE_FALLBACK_PROVIDERS = os.getenv("ENABLE_FALLBACK_PROVIDERS", "false").lower() == "true"
 
 OLLAMA_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY") if ENABLE_FALLBACK_PROVIDERS else None
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+GEMINI_API_KEY = (os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")) if ENABLE_FALLBACK_PROVIDERS else None
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
 
 
@@ -107,7 +109,12 @@ def call_gemini_min_schema(text: str) -> Dict[str, Any]:
 
 
 def parse_with_fallback_min_schema(text: str, preferred_ollama_model: Optional[str]) -> Dict[str, Any]:
-    # 1) Try Ollama first
+    """
+    Parse resume with fallback chain: Ollama → OpenAI → Gemini (if enabled).
+    
+    Set ENABLE_FALLBACK_PROVIDERS=true in .env to enable OpenAI/Gemini fallbacks.
+    """
+    # 1) Try Ollama first (always primary)
     try:
         res = call_ollama_min_schema(text, preferred_ollama_model)
         if "error" not in res:
@@ -117,23 +124,27 @@ def parse_with_fallback_min_schema(text: str, preferred_ollama_model: Optional[s
     except Exception as e:
         res = {"error": f"Ollama exception: {e}"}
 
-    # 2) Fallback to OpenAI
-    try:
-        oa = call_openai_min_schema(text)
-        if "error" not in oa:
-            oa["_provider"] = "openai"
-            oa["_model"] = OPENAI_MODEL
-            return oa
-    except Exception as e:
-        pass
+    # 2) Fallback to OpenAI (only if enabled)
+    if ENABLE_FALLBACK_PROVIDERS and OPENAI_API_KEY:
+        try:
+            oa = call_openai_min_schema(text)
+            if "error" not in oa:
+                oa["_provider"] = "openai"
+                oa["_model"] = OPENAI_MODEL
+                return oa
+        except Exception as e:
+            pass
 
-    # 3) Fallback to Gemini
-    gm = call_gemini_min_schema(text)
-    if "error" not in gm:
-        gm["_provider"] = "gemini"
-        gm["_model"] = GEMINI_MODEL
+    # 3) Fallback to Gemini (only if enabled)
+    if ENABLE_FALLBACK_PROVIDERS and GEMINI_API_KEY:
+        gm = call_gemini_min_schema(text)
+        if "error" not in gm:
+            gm["_provider"] = "gemini"
+            gm["_model"] = GEMINI_MODEL
+            return gm
         return gm
 
-    return gm if "error" in gm else {"error": "Unknown error"}
+    # Return Ollama error if no fallbacks available
+    return res if "error" in res else {"error": "Unknown error"}
 
 

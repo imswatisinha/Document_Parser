@@ -79,89 +79,46 @@ def detect_document_complexity(text: str) -> Dict[str, any]:
 def get_available_ollama_models() -> List[str]:
     """
     Get list of available Ollama models from the API.
+    Filtered to only supported models: phi3:mini and llama3.2:3b
     
     Returns:
         list: Available model names
     """
+    supported_models = ["phi3:mini", "llama3.2:3b"]
     try:
         response = requests.get("http://localhost:11434/api/tags", timeout=5)
         if response.status_code == 200:
             models_data = response.json()
-            return [model['name'] for model in models_data.get('models', [])]
+            all_models = [model['name'] for model in models_data.get('models', [])]
+            return [m for m in all_models if m in supported_models]
     except Exception:
         pass
     return []
 
 def get_model_memory_requirements() -> Dict[str, Dict[str, any]]:
     """
-    Get memory requirements and characteristics for different models.
+    Get memory requirements and characteristics for supported models.
+    Simplified to only two models: llama3.2:3b and phi3:mini.
     
     Returns:
         dict: Model characteristics including memory requirements
     """
     return {
-        # Lightweight models (< 4GB RAM)
-        "gemma2:2b": {
-            "ram_required": 3,
+        "phi3:mini": {
+            "ram_required": 2,
             "vram_required": 2,
-            "model_size": "1.6GB",
+            "model_size": "2.2GB",
             "performance": "fast",
             "quality": "good",
             "reliability": "high"
         },
-        "llama3.2:1b": {
-            "ram_required": 2,
-            "vram_required": 1,
-            "model_size": "1.3GB", 
-            "performance": "very_fast",
-            "quality": "fair",
-            "reliability": "high"
-        },
-        
-        # Medium models (4-8GB RAM)
         "llama3.2:3b": {
-            "ram_required": 6,
-            "vram_required": 4,
+            "ram_required": 4,
+            "vram_required": 3,
             "model_size": "2.0GB",
             "performance": "medium",
             "quality": "very_good",
             "reliability": "high"
-        },
-        "phi3:mini": {
-            "ram_required": 6,
-            "vram_required": 4,
-            "model_size": "2.2GB",
-            "performance": "medium",
-            "quality": "very_good",
-            "reliability": "high"
-        },
-        
-        # Larger models (8GB+ RAM)
-        "mistral:7b": {
-            "ram_required": 10,
-            "vram_required": 6,
-            "model_size": "4.1GB",
-            "performance": "slow",
-            "quality": "excellent",
-            "reliability": "medium"
-        },
-        "llama3.1:8b": {
-            "ram_required": 12,
-            "vram_required": 8,
-            "model_size": "4.7GB",
-            "performance": "slow",
-            "quality": "excellent",
-            "reliability": "medium"
-        },
-        
-        # Very large models (16GB+ RAM)
-        "llama3.1:70b": {
-            "ram_required": 48,
-            "vram_required": 32,
-            "model_size": "40GB",
-            "performance": "very_slow",
-            "quality": "exceptional",
-            "reliability": "low"
         }
     }
 
@@ -187,24 +144,12 @@ def select_optimal_model(document_analysis: Dict, available_models: List[str]) -
     # Get model characteristics
     model_specs = get_model_memory_requirements()
     
-    # Memory-aware model preferences (ordered from safest to most demanding)
+    # Simplified model preferences for two models
     memory_safe_preferences = {
-        "very_complex": [
-            # Start with medium models, avoid large ones unless system is robust
-            "llama3.2:3b", "phi3:mini", "gemma2:2b", "llama3.1:8b", "mistral:7b"
-        ],
-        "complex": [
-            # Prefer medium-quality models with good memory characteristics
-            "llama3.2:3b", "phi3:mini", "gemma2:2b", "mistral:7b"
-        ],
-        "medium": [
-            # Balance of speed and quality, prioritize reliability
-            "phi3:mini", "llama3.2:3b", "gemma2:2b", "llama3.2:1b"
-        ],
-        "simple": [
-            # Prioritize speed and low memory usage
-            "gemma2:2b", "llama3.2:1b", "phi3:mini", "llama3.2:3b"
-        ]
+        "very_complex": ["llama3.2:3b", "phi3:mini"],
+        "complex": ["llama3.2:3b", "phi3:mini"],
+        "medium": ["llama3.2:3b", "phi3:mini"],
+        "simple": ["phi3:mini", "llama3.2:3b"]
     }
     
     # Get preferred models for this category
@@ -681,11 +626,10 @@ def show_model_recommendations(available_models: List[str]) -> None:
         
     st.sidebar.markdown("### 🎯 Model Recommendations")
     
-    # Categorize available models
+    # Categorize available models - simplified to two models
     model_categories = {
-        "⚡ Fast Models (< 5GB)": ["phi3:mini", "gemma2:2b", "llama3.2:1b"],
-        "⚖️ Balanced Models (2-5GB)": ["llama3.2:3b", "phi3:medium", "mistral:7b"],  
-        "🚀 Powerful Models (> 5GB)": ["llama3.1:8b", "llama3.1:70b", "llama3:70b"]
+        "⚡ Fast Models": ["phi3:mini"],
+        "⚖️ Balanced Models": ["llama3.2:3b"]
     }
     
     for category, models in model_categories.items():
@@ -718,47 +662,23 @@ def get_model_performance_info(model_name: str) -> Dict[str, any]:
     Returns:
         dict: Performance information
     """
-    # Model performance database
+    # Model performance database - simplified to two models
     model_info = {
         "phi3:mini": {
-            "size": "3.8GB",
+            "size": "2.2GB",
             "speed": "⚡⚡⚡",
             "quality": "⭐⭐",
             "best_for": "Fast processing, small documents",
             "context_length": "4K tokens",
-            "ram_requirement": "4GB"
-        },
-        "gemma2:2b": {
-            "size": "1.6GB", 
-            "speed": "⚡⚡⚡",
-            "quality": "⭐⭐",
-            "best_for": "Very lightweight processing",
-            "context_length": "2K tokens",
             "ram_requirement": "2GB"
         },
         "llama3.2:3b": {
-            "size": "2GB",
+            "size": "2.0GB",
             "speed": "⚡⚡",
             "quality": "⭐⭐⭐",
             "best_for": "Balanced speed and quality",
             "context_length": "8K tokens", 
             "ram_requirement": "4GB"
-        },
-        "llama3.1:8b": {
-            "size": "4.7GB",
-            "speed": "⚡",
-            "quality": "⭐⭐⭐⭐",
-            "best_for": "High quality processing",
-            "context_length": "32K tokens",
-            "ram_requirement": "8GB"
-        },
-        "mistral:7b": {
-            "size": "4.1GB",
-            "speed": "⚡⚡",
-            "quality": "⭐⭐⭐",
-            "best_for": "Technical documents",
-            "context_length": "8K tokens",
-            "ram_requirement": "6GB"
         }
     }
     
@@ -941,8 +861,8 @@ def parse_resume_with_ollama(text, pages=None, model_name=None, use_expanders=Tr
                 col1, col2, col3 = st.columns(3)
                 
                 with col1:
-                    st.markdown("**Install Lighter Model:**")
-                    st.code("ollama pull gemma2:2b", language="bash")
+                    st.markdown("**Install Fast Model:**")
+                    st.code("ollama pull phi3:mini", language="bash")
                     
                 with col2:
                     st.markdown("**Restart Ollama:**")

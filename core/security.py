@@ -450,6 +450,30 @@ class SecurityManager:
         
         return clean_dict(data)
     
+    def get_api_key(self, key_name: str) -> Optional[str]:
+        """
+        Get API key from environment variables or secure storage.
+        
+        Args:
+            key_name: Name of the API key (e.g., 'PINECONE_API_KEY', 'OPENAI_API_KEY')
+            
+        Returns:
+            API key value or None if not found
+        """
+        # First try environment variable
+        env_key = os.getenv(key_name)
+        if env_key:
+            return env_key
+        
+        # Try alternative naming (e.g., GOOGLE_API_KEY for GEMINI_API_KEY)
+        if key_name == "GEMINI_API_KEY":
+            env_key = os.getenv("GOOGLE_API_KEY")
+            if env_key:
+                return env_key
+        
+        # Could also check secure storage in the future
+        return None
+    
     def get_security_report(self) -> Dict[str, Any]:
         """Generate security status report."""
         return {
