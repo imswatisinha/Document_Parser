@@ -40,17 +40,41 @@ class DocumentChunker:
         chunks = []
         
         # Define section patterns - more precise to avoid merging
-        section_patterns = {
-            'personal_info': r'(?i)^(?:name|contact|phone|email|address|linkedin|portfolio|github)[\s:]*([^\n]+)',
-            'objective': r'(?i)^(?:professional\s+)?(?:summary|objective|profile)[\s:]*\n((?:.*\n?)*?)(?=\n\s*(?:experience|education|work|skill|project|certification|achievement|$)|\n\s*[A-Z][^:]*:)',
-            'education': r'(?i)^(?:education|academic|qualification)[\s:]*\n((?:.*\n?)*?)(?=\n\s*(?:experience|work|skill|project|certification|achievement|technical|professional|$)|\n\s*[A-Z][^:]*:)',
-            'experience': r'(?i)^(?:professional\s+)?(?:experience|employment|work|career)[\s:]*\n((?:.*\n?)*?)(?=\n\s*(?:education|skill|project|certification|achievement|technical|$)|\n\s*[A-Z][^:]*:)',
-            'skills': r'(?i)^(?:technical\s+)?(?:skills?|technologies?|competenc|proficienc)[\s:]*\n((?:.*\n?)*?)(?=\n\s*(?:experience|education|project|certification|achievement|$)|\n\s*[A-Z][^:]*:)',
-            'projects': r'(?i)^(?:projects?|portfolio)[\s:]*\n((?:.*\n?)*?)(?=\n\s*(?:experience|education|skill|certification|achievement|$)|\n\s*[A-Z][^:]*:)',
-            'certifications': r'(?i)^(?:certification|certificate|license)[\s:]*\n((?:.*\n?)*?)(?=\n\s*(?:experience|education|skill|project|achievement|$)|\n\s*[A-Z][^:]*:)',
-            'achievements': r'(?i)^(?:achievements?|awards?|honors?)[\s:]*\n((?:.*\n?)*?)(?=\n\s*(?:experience|education|skill|project|certification|$)|\n\s*[A-Z][^:]*:)'
-        }
+        # section_patterns = {
+        #     'personal_info': r'(?i)^(?:name|contact|phone|email|address|linkedin|portfolio|github)[\s:]*([^\n]+)',
+        #     'objective': r'(?i)^(?:professional\s+)?(?:summary|objective|profile)[\s:]*\n((?:.*\n?)*?)(?=\n\s*(?:experience|education|work|skill|project|certification|achievement|$)|\n\s*[A-Z][^:]*:)',
+        #     'education': r'(?i)^(?:education|academic|qualification)[\s:]*\n((?:.*\n?)*?)(?=\n\s*(?:experience|work|skill|project|certification|achievement|technical|professional|$)|\n\s*[A-Z][^:]*:)',
+        #     'experience': r'(?i)^(?:professional\s+)?(?:experience|employment|work|career)[\s:]*\n((?:.*\n?)*?)(?=\n\s*(?:education|skill|project|certification|achievement|technical|$)|\n\s*[A-Z][^:]*:)',
+        #     'skills': r'(?i)^(?:technical\s+)?(?:skills?|technologies?|competenc|proficienc)[\s:]*\n((?:.*\n?)*?)(?=\n\s*(?:experience|education|project|certification|achievement|$)|\n\s*[A-Z][^:]*:)',
+        #     'projects': r'(?i)^(?:projects?|portfolio)[\s:]*\n((?:.*\n?)*?)(?=\n\s*(?:experience|education|skill|certification|achievement|$)|\n\s*[A-Z][^:]*:)',
+        #     'certifications': r'(?i)^(?:certification|certificate|license)[\s:]*\n((?:.*\n?)*?)(?=\n\s*(?:experience|education|skill|project|achievement|$)|\n\s*[A-Z][^:]*:)',
+        #     'achievements': r'(?i)^(?:achievements?|awards?|honors?)[\s:]*\n((?:.*\n?)*?)(?=\n\s*(?:experience|education|skill|project|certification|$)|\n\s*[A-Z][^:]*:)'
+        # }
         
+        section_patterns = {
+    'personal_info': r'(?i)^(?:name|contact|phone|email|address|linkedin|portfolio|github)[\s:]*([^\n]+)',
+
+    'objective': r'(?i)^(?:professional\s+)?(?:summary|objective|profile)[\s:]*\n((?:.*\n?)*?)(?=\n\s*(?:experience|education|work|skill|project|certification|achievement|award|honor|publication|$)|\n\s*[A-Z][^:]*:)',
+
+    'education': r'(?i)^(?:education|academic|qualification|academics)[\s:]*\n((?:.*\n?)*?)(?=\n\s*(?:experience|work|skill|project|certification|achievement|award|honor|publication|$)|\n\s*[A-Z][^:]*:)',
+
+    'experience': r'(?i)^(?:professional\s+)?(?:experience|employment|work|career|internship)[\s:]*\n((?:.*\n?)*?)(?=\n\s*(?:education|skill|project|certification|achievement|award|honor|publication|$)|\n\s*[A-Z][^:]*:)',
+
+    'skills': r'(?i)^(?:technical\s+)?(?:skills?|technologies?|competenc|proficienc)[\s:]*\n((?:.*\n?)*?)(?=\n\s*(?:experience|education|project|certification|achievement|award|honor|publication|$)|\n\s*[A-Z][^:]*:)',
+
+    'projects': r'(?i)^(?:projects?|portfolio|personal\s+projects)[\s:]*\n((?:.*\n?)*?)(?=\n\s*(?:experience|education|skill|certification|achievement|award|honor|publication|$)|\n\s*[A-Z][^:]*:)',
+
+    'certifications': r'(?i)^(?:certification|certificate|certifications|licenses?|training)[\s:]*\n((?:.*\n?)*?)(?=\n\s*(?:experience|education|skill|project|achievement|award|honor|publication|$)|\n\s*[A-Z][^:]*:)',
+
+    'achievements': r'(?i)^(?:achievements?|accomplishment|accomplishments)[\s:]*\n((?:.*\n?)*?)(?=\n\s*(?:experience|education|skill|project|certification|award|honor|publication|$)|\n\s*[A-Z][^:]*:)',
+
+    'awards': r'(?i)^(?:awards?|recognitions?|distinctions?)[\s:]*\n((?:.*\n?)*?)(?=\n\s*(?:experience|education|skill|project|certification|achievement|honor|publication|$)|\n\s*[A-Z][^:]*:)',
+
+    'honors': r'(?i)^(?:honors?|honours|titles)[\s:]*\n((?:.*\n?)*?)(?=\n\s*(?:experience|education|skill|project|certification|achievement|award|publication|$)|\n\s*[A-Z][^:]*:)',
+
+    'publications': r'(?i)^(?:publications?|research\s+papers?|papers?|articles?|journals?|conference\s+publications?)\s*:\s*\n?((?:.*\n?)*?)(?=\n\s*(?:experience|education|skill|project|achievement|award|honor|certification|$)|\n\s*[A-Z][^:]*:)'
+}
+
         for section_name, pattern in section_patterns.items():
             matches = re.finditer(pattern, text, re.MULTILINE | re.DOTALL)
             

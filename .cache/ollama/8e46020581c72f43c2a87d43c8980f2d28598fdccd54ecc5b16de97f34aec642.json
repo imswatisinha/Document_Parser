@@ -1,0 +1,171 @@
+{
+  "personal_info": {
+    "name": "SWATI SINHA",
+    "email": "swatisinhas15552@gmail.com",
+    "phone": "+91 9151539078",
+    "location": "Gorakhpur, India",
+    "linkedin": "",
+    "github": ""
+  },
+  "summary": null,
+  "experience": [
+    {
+      "title": "Data Science Intern",
+      "company_name": "Sabudh Foundation",
+      "location": "India",
+      "start_time": "July 2025 – Present",
+      "end_time": "",
+      "summary": ""
+    },
+    {
+      "title": "ISRO Project Intern",
+      "company_name": "IIT Jodhpur",
+      "location": "India",
+      "start_time": "Jun 2025 – Aug 2025",
+      "end_time": "",
+      "summary": ""
+    },
+    {
+      "title": "Cybersecurity Intern",
+      "company_name": "CDAC – Cybergyan",
+      "location": "India",
+      "start_time": "June 2024 – July 2024",
+      "end_time": "",
+      "summary": ""
+    }
+  ],
+  "education": [
+    {
+      "institution": "Madan Mohan Malaviya University Of Technology",
+      "degree": "Bachelor of Technology, Computer Science",
+      "year": "Nov 2022-Apr 2026",
+      "location": "India",
+      "gpa": "7.94/10"
+    }
+  ],
+  "skills": {
+    "technical": [
+      "C++",
+      "Python",
+      "JavaScript",
+      "SQL",
+      "Machine Learning",
+      "Deep Learning",
+      "NLP",
+      "LLMs",
+      "Prompt Engineering",
+      "RAG",
+      "LangChain",
+      "NumPy",
+      "Pandas",
+      "Scikit-learn",
+      "TensorFlow",
+      "Matplotlib",
+      "Seaborn",
+      "Hugging Face",
+      "HTML",
+      "CSS",
+      "React.js",
+      "Node.js",
+      "MongoDB",
+      "Tailwind CSS",
+      "Django",
+      "Git",
+      "GitHub",
+      "Jupyter Notebook",
+      "Google Colab",
+      "VS Code",
+      "Pinecone",
+      "MySQL",
+      "DSA",
+      "DBMS",
+      "OOP",
+      "Computer Networks",
+      "Operating Systems"
+    ],
+    "management": [
+      "Team Leadership",
+      "Project Management",
+      "Event Coordination",
+      "Communication",
+      "Collaboration",
+      "Problem Solving",
+      "Time Management",
+      "Task Delegation"
+    ],
+    "programming_languages": [],
+    "tools_and_technologies": [],
+    "domains": []
+  },
+  "projects": [
+    {
+      "name": "TRUSTFUND- Decentralized Crowdfunding Platform",
+      "description": "",
+      "technologies": [],
+      "url": "",
+      "duration": ""
+    },
+    {
+      "name": "Student Performance Predictor",
+      "description": "",
+      "technologies": [],
+      "url": "",
+      "duration": ""
+    }
+  ],
+  "certifications": [
+    {
+      "name": "Introduction to Machine Learning – NPTEL (IIT Madras)",
+      "issuer": "",
+      "date": "NPTEL (IIT Madras)",
+      "url": ""
+    },
+    {
+      "name": "Getting Started with Competitive Programming – NPTEL (IIT Madras)",
+      "issuer": "",
+      "date": "NPTEL (IIT Madras)",
+      "url": ""
+    },
+    {
+      "name": "Introduction to Large Language Models (LLMs) – NPTEL (IIT Madras)",
+      "issuer": "",
+      "date": "NPTEL (IIT Madras)",
+      "url": ""
+    },
+    {
+      "name": "Artificial Intelligence Fundamentals",
+      "issuer": "IBM",
+      "date": "",
+      "url": ""
+    },
+    {
+      "name": "Flipkart GRiD 6.0 – Software Development Track by Flipkart",
+      "issuer": "",
+      "date": "",
+      "url": ""
+    }
+  ],
+  "achievements": [
+    {
+      "title": "Selected in the Top 20 teams at Smart India Hackathon (SIH)."
+    },
+    {
+      "title": "Served as Team Lead during the IIT Jodhpur – Sabudh Foundation internship,"
+    },
+    {
+      "title": "Played major roles in IEEE-SB MMMUT, contributing to the organization of TechSrijan, Hackathons, SIH, and TEDx events;"
+    },
+    {
+      "title": "Secured 2nd position in a Poland regional-level dance competition,"
+    }
+  ],
+  "languages": [
+    "English",
+    "Hindi"
+  ],
+  "keywords_extracted": [],
+  "classification_tags": [],
+  "_model_used": "llama3.2:3b",
+  "_source": "ollama",
+  "_timestamp": "2025-12-11T19:57:45.035266"
+}

@@ -1,0 +1,177 @@
+{
+  "personal_info": {
+    "name": "SWATI SINHA",
+    "email": "",
+    "phone": "",
+    "location": "Gorakhpur, India",
+    "linkedin": "LinkedIn url",
+    "github": "Github link"
+  },
+  "summary": null,
+  "experience": [
+    {
+      "title": "Data Science Intern",
+      "company_name": "Sabudh Foundation",
+      "location": "",
+      "start_time": "July 2025 – Present",
+      "end_time": "",
+      "summary": ""
+    },
+    {
+      "title": "ISRO Project Intern",
+      "company_name": "IIT Jodhpur",
+      "location": "",
+      "start_time": "Jun 2025 – Aug 2025",
+      "end_time": "",
+      "summary": ""
+    },
+    {
+      "title": "Cybersecurity Intern",
+      "company_name": "CDAC – Cybergyan",
+      "location": "",
+      "start_time": "June 2024 – July 2024",
+      "end_time": "",
+      "summary": ""
+    }
+  ],
+  "education": [
+    {
+      "institution": "Madan Mohan Malaviya University Of Technology",
+      "degree": "Bachelor of Technology, Computer Science",
+      "year": "Nov 2022-Apr 2026",
+      "location": "",
+      "gpa": "7.94/10"
+    }
+  ],
+  "skills": {
+    "technical": [
+      "C++",
+      "Python",
+      "JavaScript",
+      "SQL",
+      "Machine Learning",
+      "Deep Learning",
+      "NLP",
+      "LLMs",
+      "Prompt Engineering",
+      "RAG",
+      "LangChain",
+      "NumPy",
+      "Pandas",
+      "Scikit-learn",
+      "TensorFlow",
+      "Matplotlib",
+      "Seaborn",
+      "Hugging Face",
+      "HTML",
+      "CSS",
+      "React.js",
+      "Node.js",
+      "MongoDB",
+      "Tailwind CSS",
+      "Django",
+      "Git",
+      "GitHub",
+      "Jupyter Notebook",
+      "Google Colab",
+      "VS Code",
+      "Pinecone",
+      "MySQL",
+      "SA",
+      "DBMS",
+      "OOP",
+      "Computer Networks",
+      "Operating Systems"
+    ],
+    "management": [
+      "Team Leadership",
+      "Project Management",
+      "Event Coordination",
+      "Communication",
+      "Collaboration",
+      "Problem Solving",
+      "Time Management",
+      "Task Delegation"
+    ],
+    "programming_languages": [],
+    "tools_and_technologies": [],
+    "domains": []
+  },
+  "projects": [
+    {
+      "name": "TRUSTFUND- Decentralized Crowdfunding Platform",
+      "description": "",
+      "technologies": [],
+      "url": "",
+      "duration": ""
+    },
+    {
+      "name": "Student Performance Predictor",
+      "description": "",
+      "technologies": [],
+      "url": "",
+      "duration": ""
+    }
+  ],
+  "certifications": [
+    {
+      "name": "Introduction to Machine Learning – NPTEL (IIT Madras)",
+      "issuer": "",
+      "date": "NPTEL (IIT Madras)",
+      "url": ""
+    },
+    {
+      "name": "Getting Started with Competitive Programming – NPTEL (IIT Madras)",
+      "issuer": "",
+      "date": "NPTEL (IIT Madras)",
+      "url": ""
+    },
+    {
+      "name": "Introduction to Large Language Models (LLMs) – NPTEL (IIT Madras)",
+      "issuer": "",
+      "date": "NPTEL (IIT Madras)",
+      "url": ""
+    },
+    {
+      "name": "Artificial Intelligence Fundamentals",
+      "issuer": "IBM",
+      "date": "",
+      "url": ""
+    },
+    {
+      "name": "Flipkart GRiD 6.0 – Software Development Track by Flipkart",
+      "issuer": "",
+      "date": "",
+      "url": ""
+    }
+  ],
+  "achievements": [
+    {
+      "title": "Selected in the Top 20 teams at Smart India Hackathon (SIH)."
+    },
+    {
+      "title": "Served as Team Lead during the IIT Jodhpur – Sabudh Foundation internship, leading project work and coordinating team activities."
+    },
+    {
+      "title": "Played major roles in IEEE-SB MMMUT, contributing to the organization of TechSrijan, Hackathons, SIH, and TEDx events; appointed Head of IEEE-MMMUT (Management & Outreach)."
+    },
+    {
+      "title": "Secured 2nd position in a Poland regional-level dance competition, represented school at the regional level in Bharatnatyam, and achieved 1st position in a skit competition at a Social Science exhibition in my school in 2019."
+    }
+  ],
+  "languages": [
+    {
+      "language": "English",
+      " proficiency": ""
+    },
+    {
+      "language": "Hindi",
+      "proficiency": ""
+    }
+  ],
+  "keywords_extracted": [],
+  "classification_tags": [],
+  "_model_used": "llama3.2:3b",
+  "_source": "ollama",
+  "_timestamp": "2025-12-11T20:24:36.039823"
+}

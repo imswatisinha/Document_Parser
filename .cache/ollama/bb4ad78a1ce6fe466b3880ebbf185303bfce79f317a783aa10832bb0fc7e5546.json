@@ -1,0 +1,105 @@
+{
+  "personal_info": {
+    "name": "Rohan Sharma",
+    "email": "rohansharma@gmail.com",
+    "phone": "+91 9893456789",
+    "location": "Delhi, India",
+    "linkedin": "",
+    "github": ""
+  },
+  "experience": [
+    {
+      "title": "Senior Analyst, Business Development & Operations",
+      "company_name": "McKinsey & CO.",
+      "location": "London, United Kingdom",
+      "start_time": "Apr 2017",
+      "end_time": "Present",
+      "summary": ""
+    },
+    {
+      "title": "Business Analyst",
+      "company_name": "McKinsey & CO.",
+      "location": "London, United Kingdom",
+      "start_time": "Jul 2015",
+      "end_time": "Apr 2017",
+      "summary": ""
+    },
+    {
+      "title": "Associate Product Manager",
+      "company_name": "Microsoft",
+      "location": "Sydney, Australia",
+      "start_time": "Apr 2013",
+      "end_time": "Jun 2015",
+      "summary": ""
+    },
+    {
+      "title": "Analyst",
+      "company_name": "Cisco",
+      "location": "Delhi, India",
+      "start_time": "June 2011",
+      "end_time": "May 2013",
+      "summary": ""
+    }
+  ],
+  "education": [
+    {
+      "institution": "XYZ Engineering College/MBA College",
+      "degree": "Bachelor of Engineering, Computer Science",
+      "year": "May 2014",
+      "location": "",
+      "gpa": "3.8/4.0"
+    },
+    {
+      "institution": "12th College Name",
+      "degree": "",
+      "year": "June 2009",
+      "location": "",
+      "gpa": ""
+    },
+    {
+      "institution": "10th College Name",
+      "degree": "",
+      "year": "August 2008",
+      "location": "",
+      "gpa": ""
+    }
+  ],
+  "skills": {
+    "technical": [
+      "Java",
+      "Matlab",
+      "Microsoft Excel"
+    ],
+    "soft": [],
+    "programming_languages": [],
+    "tools_and_technologies": [],
+    "domains": []
+  },
+  "projects": [
+    {
+      "name": "",
+      "description": "",
+      "technologies": [],
+      "url": "",
+      "duration": ""
+    }
+  ],
+  "certifications": [
+    {
+      "name": "Data Science Certification",
+      "issuer": "Simplilearn",
+      "date": "2017-2018",
+      "url": ""
+    }
+  ],
+  "achievements": [],
+  "languages": [
+    "French",
+    "English"
+  ],
+  "keywords_extracted": [],
+  "classification_tags": [],
+  "_model_used": "llama3.2:3b",
+  "_source": "ollama",
+  "_timestamp": "2025-12-11T20:31:21.844720"
+}
