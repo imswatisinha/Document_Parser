@@ -722,6 +722,9 @@ def main():
                 for m in available_models:
                     st.write(f"• {m}")
                 st.info("Model selection is automatic; override in advanced settings if needed.")
+            if "ollama_rag" not in st.session_state:
+                from utils.rag_retriever import OllamaRAGRetriever
+                st.session_state.ollama_rag = OllamaRAGRetirever()
         else:
             st.error("⚠️ Ollama singleton not found. Make sure your utils module exposes a singleton (e.g., `ollama_singleton` or `OllamaParser`).")
 
