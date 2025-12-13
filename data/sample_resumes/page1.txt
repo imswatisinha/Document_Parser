@@ -1,0 +1,50 @@
+ALEXANDRA CHEN
+Senior Full Stack Developer & AI Specialist
+
+Email: alexandra.chen@techmail.com | Phone: +1 (555) 123-4567
+LinkedIn: linkedin.com/in/alexandra-chen-dev
+GitHub: github.com/alex-chen-code
+Portfolio: www.alexchen-portfolio.dev
+
+PROFESSIONAL SUMMARY
+Results-driven software engineer with 8+ years of experience in full-stack 
+development, machine learning, and cloud architecture. Led teams of 15+ 
+developers and delivered 50+ production applications. Expert in Python, 
+JavaScript, and emerging AI technologies.
+
+TECHNICAL SKILLS
+Programming Languages: Python, JavaScript, TypeScript, Java, C++, Go, Rust
+Frontend Technologies: React, Vue.js, Angular, HTML5, CSS3, SASS, Bootstrap
+Backend Frameworks: Django, Flask, FastAPI, Node.js, Express.js, Spring Boot
+Databases: PostgreSQL, MongoDB, Redis, Elasticsearch, MySQL, DynamoDB
+Cloud Platforms: AWS, Google Cloud Platform, Microsoft Azure, DigitalOcean
+DevOps & Tools: Docker, Kubernetes, Jenkins, GitLab CI/CD, Terraform
+Machine Learning: TensorFlow, PyTorch, Scikit-learn, Pandas, NumPy
+Other: GraphQL, REST APIs, Microservices, Serverless, Blockchain
+
+WORK EXPERIENCE
+
+Senior Software Engineer | TechCorp Solutions Inc. | Jan 2021 - Present
+• Lead a cross-functional team of 12 developers in building scalable web applications
+• Architected and implemented microservices infrastructure serving 2M+ daily users
+• Developed AI-powered recommendation system increasing user engagement by 45%
+• Mentored 8 junior developers and established coding standards for the organization
+• Technologies used: Python, React, AWS, Docker, PostgreSQL, Redis
+
+Full Stack Developer | InnovateHub Technologies | Mar 2019 - Dec 2020  
+• Built responsive web applications using React, Node.js, and MongoDB
+• Implemented real-time chat system handling 10K+ concurrent users
+• Optimized database queries reducing response time by 60%
+• Collaborated with UX/UI team to deliver pixel-perfect interfaces
+• Stack: JavaScript, React, Node.js, MongoDB, Socket.io, AWS EC2
+
+Software Developer | StartupXYZ | Jun 2017 - Feb 2019
+• Developed REST APIs serving mobile applications with 500K+ downloads
+• Implemented automated testing pipeline reducing bugs by 40%
+• Built data visualization dashboard using D3.js and Python
+• Technologies: Python, Django, PostgreSQL, JavaScript, D3.js
+
+EDUCATION & CERTIFICATIONS
+
+Master of Science in Computer Science | Stanford University | 2015-2017
+GPA: 3.8/4.0 | Focus: Machine Learning and Distributed Systems

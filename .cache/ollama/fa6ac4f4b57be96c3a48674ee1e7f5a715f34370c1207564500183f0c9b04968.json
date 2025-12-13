@@ -1,0 +1,76 @@
+{
+  "personal_info": {
+    "name": "Yann LeCun",
+    "email": "",
+    "phone": "",
+    "location": "",
+    "linkedin": "",
+    "github": ""
+  },
+  "summary": null,
+  "experience": [
+    {
+      "title": "",
+      "company_name": "",
+      "location": "",
+      "start_time": "Dec 2017 - present",
+      "end_time": "",
+      "summary": ""
+    },
+    {
+      "title": "",
+      "company_name": "",
+      "location": "",
+      "start_time": "Jan 2013 - Jan 2014",
+      "end_time": "",
+      "summary": ""
+    }
+  ],
+  "education": [
+    {
+      "institution": "Sorbonne Université (then Université P. et M. Curie)",
+      "degree": "PhD",
+      "year": "1987",
+      "location": "",
+      "gpa": ""
+    },
+    {
+      "institution": "Sorbonne Université (then Université P. et M. Curie)",
+      "degree": "MSc in CS",
+      "year": "1984",
+      "location": "",
+      "gpa": ""
+    }
+  ],
+  "skills": {
+    "technical": [],
+    "soft": [],
+    "programming_languages": [],
+    "tools_and_technologies": [],
+    "domains": []
+  },
+  "projects": [
+    {
+      "name": "",
+      "description": "",
+      "technologies": [],
+      "url": "",
+      "duration": ""
+    }
+  ],
+  "certifications": [
+    {
+      "name": "",
+      "issuer": "",
+      "date": "2024",
+      "url": ""
+    }
+  ],
+  "achievements": [],
+  "languages": [],
+  "keywords_extracted": [],
+  "classification_tags": [],
+  "_model_used": "llama3.2:3b",
+  "_source": "ollama",
+  "_timestamp": "2025-12-11T18:51:30.891440"
+}

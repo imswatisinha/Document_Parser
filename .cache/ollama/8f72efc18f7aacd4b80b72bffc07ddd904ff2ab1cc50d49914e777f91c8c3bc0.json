@@ -1,0 +1,60 @@
+{
+  "personal_info": {
+    "name": "",
+    "email": "swatisinhas15552@gmail.com",
+    "phone": "+91 9151539078",
+    "location": "Gorakhpur, India",
+    "linkedin": "LinkedIn | GitHub"
+  },
+  "summary": null,
+  "experience": [
+    {
+      "title": "",
+      "company_name": "",
+      "location": "",
+      "start_time": "July 2025 – Present",
+      "end_time": "",
+      "summary": ""
+    }
+  ],
+  "education": [
+    {
+      "institution": "MMMUT",
+      "degree": "B.Tech CSE",
+      "year": "2022–2026",
+      "location": "",
+      "gpa": "7.94/10"
+    }
+  ],
+  "skills": {
+    "technical": [],
+    "soft": [],
+    "programming_languages": [],
+    "tools_and_technologies": [],
+    "domains": []
+  },
+  "projects": [
+    {
+      "name": "",
+      "description": "",
+      "technologies": [],
+      "url": "",
+      "duration": ""
+    }
+  ],
+  "certifications": [
+    {
+      "name": "",
+      "issuer": "",
+      "date": "",
+      "url": ""
+    }
+  ],
+  "achievements": [],
+  "languages": [],
+  "keywords_extracted": [],
+  "classification_tags": [],
+  "_model_used": "llama3.2:3b",
+  "_source": "ollama",
+  "_timestamp": "2025-12-11T20:40:42.108193"
+}

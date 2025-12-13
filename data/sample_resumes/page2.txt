@@ -1,0 +1,50 @@
+Thesis: "Scalable Deep Learning for Real-time Natural Language Processing"
+
+B.Tech in Information Technology | Indian Institute of Technology Delhi | 2011-2015  
+GPA: 9.2/10.0 | Graduated Magna Cum Laude
+Relevant Coursework: Data Structures, Algorithms, Database Systems, AI
+
+High School Diploma | Delhi Public School, Vasant Kunj | 2009-2011
+Percentage: 95.4% | Science Stream with Computer Science
+Awards: Best Student in Computer Science, Mathematics Olympiad Winner
+
+Certifications:
+• AWS Certified Solutions Architect - Professional (2023)
+• Google Cloud Professional Data Engineer (2022)  
+• Certified Kubernetes Administrator (CKA) (2022)
+• Microsoft Azure Fundamentals (2021)
+
+MAJOR PROJECTS
+
+1. E-Commerce Microservices Platform (2023)
+   Built a complete e-commerce solution using microservices architecture
+   • Developed 15+ independent services using Python FastAPI and Node.js
+   • Implemented event-driven communication using Apache Kafka
+   • Set up monitoring with Prometheus and Grafana
+   • Deployed on Kubernetes cluster with auto-scaling capabilities
+   • Integrated payment gateways (Stripe, PayPal) and inventory management
+   • Technologies: Python, FastAPI, Node.js, PostgreSQL, Redis, Kafka, Kubernetes
+   • Result: Handled 50K+ concurrent users during peak traffic
+
+2. AI-Powered Code Review Assistant (2022)
+   Developed an intelligent code review tool using machine learning
+   • Trained custom BERT model on 2M+ code snippets for bug detection
+   • Built VS Code extension with 10K+ downloads
+   • Implemented real-time code analysis with 85% accuracy
+   • Created RESTful API serving ML models with sub-200ms response time
+   • Tech Stack: Python, TensorFlow, FastAPI, Docker, PostgreSQL
+   • Impact: Reduced code review time by 50% across development teams
+
+3. Real-time Collaboration Platform (2021)
+   Created a Slack-like collaboration tool for remote teams
+   • Built using React, Socket.io, and Node.js for real-time messaging
+   • Implemented file sharing, video calls, and screen sharing features  
+   • Supported 1000+ concurrent users with WebRTC technology
+   • Added end-to-end encryption for secure communication
+   • Deployed using Docker containers on AWS ECS
+   • Technologies: React, Node.js, Socket.io, WebRTC, MongoDB, AWS
+
+4. Blockchain Voting System (2020)
+   Designed a secure voting platform using Ethereum blockchain
+   • Implemented smart contracts in Solidity for transparent voting
+   • Built React frontend with Web3.js integration

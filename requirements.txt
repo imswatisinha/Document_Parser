@@ -1,0 +1,38 @@
+# Core Streamlit and PDF processing
+streamlit>=1.28.0
+PyMuPDF>=1.23.0
+python-dotenv>=1.0.0
+
+# Local AI with Ollama (no cloud API dependencies)
+# Note: Ollama should be installed separately on the system
+
+# Vector processing and embeddings (for enhanced RAG)
+sentence-transformers>=2.2.0
+scikit-learn>=1.3.0
+numpy>=1.21.0
+
+# HTTP requests (for Ollama API communication)
+requests>=2.31.0
+
+# Document processing and utilities
+regex>=2023.6.3
+
+# LangChain for advanced document processing and RAG workflows
+langchain>=1.0.0
+langchain-community>=0.4.0
+langchain-core>=1.0.0
+langchain-text-splitters>=1.0.0
+
+# Pinecone vector database (NEW package name)
+pinecone>=5.0.0
+
+# Enhanced document processing and embeddings
+pypdf>=6.0.0
+tiktoken>=0.12.0
+transformers>=4.57.0
+
+# Visualization and plotting
+matplotlib>=3.7.0
+
+# Development and debugging
+# jupyter>=1.0.0      # Uncomment for notebook development
