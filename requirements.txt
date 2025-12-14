@@ -15,6 +15,9 @@ numpy>=1.21.0
 # HTTP requests (for Ollama API communication)
 requests>=2.31.0
 
+# For audio transcribe
+soundfile>=0.13.0
+
 # Document processing and utilities
 regex>=2023.6.3
 nltk>=3.9.0
