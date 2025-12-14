@@ -667,73 +667,97 @@ def main():
         col_left, col_right = st.columns([1, 2])
 
         with col_left:
-            uploaded_pdf = st.file_uploader("Upload a PDF (for large-doc parsing)", type=["pdf"], key="pdf_rag_uploader")
-            if uploaded_pdf:
-                st.success(f"Selected: {uploaded_pdf.name}")
-                bytes_data = uploaded_pdf.read()
-                # quick page count check
-                import pdfplumber
-                try:
-                    with pdfplumber.open(io.BytesIO(bytes_data)) as pdf:
-                        detected_pages = len(pdf.pages)
-                except Exception:
-                    detected_pages = None
-                if detected_pages:
-                    st.write(f"Detected **{detected_pages}** pages.")
-                else:
-                    st.write("Could not detect page count (file may be corrupted).")
 
-                # st.subheader("Indexing options")
-                use_pinecone = False
-                # st.info("Using local FAISS in-memory index")
-                store_content_in_metadata = False
+            file_type = st.radio("Select type of file:", ["PDF Document", "Audio File"], key = "file_type")
 
-                # Use local FAISS only
-                pine_key = None
-                pine_env = None
-
-                # Guarded indexing action
-                if st.button("🔎 Click to Parse"):
-                    # validate Pinecone key if chosen
-                    if use_pinecone and not pine_key:
-                        print(
-                            "Pinecone selected but no API key provided. Choose one of:\n\n"
-                            "• Paste your Pinecone API key in the input above,\n"
-                            "• Set environment variable `PINECONE_API_KEY`, or\n"
-                            "• Switch to Local FAISS (in-memory) instead."
-                        )
-                        with st.expander("How to set Pinecone API key"):
-                            st.markdown(
-                                "- **Temporary (current session)**: paste it into the \"Pinecone API Key\" field above.\n"
-                                "- **Persistent (Windows)**: run `setx PINECONE_API_KEY \"<YOUR_KEY>\"` in Powershell/Command Prompt and restart your session.\n"
-                                "- **Persistent (.env)**: add `PINECONE_API_KEY=<YOUR_KEY>` to your `.env` file in the project root (you use python-dotenv)."
-                            )
+            if file_type == "PDF Document":
+                uploaded_pdf = st.file_uploader("Upload a PDF (for large-doc parsing)", type=["pdf"], key="pdf_rag_uploader")
+                if uploaded_pdf:
+                    st.success(f"Selected: {uploaded_pdf.name}")
+                    bytes_data = uploaded_pdf.read()
+                    # quick page count check
+                    import pdfplumber
+                    try:
+                        with pdfplumber.open(io.BytesIO(bytes_data)) as pdf:
+                            detected_pages = len(pdf.pages)
+                    except Exception:
+                        detected_pages = None
+                    if detected_pages:
+                        st.write(f"Detected **{detected_pages}** pages.")
                     else:
-                        try:
-                            with st.spinner("Processing..."):
-                                res = process_and_index_pdf(
-                                    pdf_bytes=bytes_data,
-                                    doc_id=os.path.splitext(uploaded_pdf.name)[0],
-                                    use_pinecone=use_pinecone,
-                                    pinecone_api_key=pine_key,
-                                    pine_env=pine_env,
-                                    store_content_in_metadata=store_content_in_metadata,
+                        st.write("Could not detect page count (file may be corrupted).")
+
+                    # st.subheader("Indexing options")
+                    use_pinecone = False
+                    # st.info("Using local FAISS in-memory index")
+                    store_content_in_metadata = False
+
+                    # Use local FAISS only
+                    pine_key = None
+                    pine_env = None
+
+                    # Guarded indexing action
+                    if st.button("🔎 Click to Parse"):
+                        # validate Pinecone key if chosen
+                        if use_pinecone and not pine_key:
+                            print(
+                                "Pinecone selected but no API key provided. Choose one of:\n\n"
+                                "• Paste your Pinecone API key in the input above,\n"
+                                "• Set environment variable `PINECONE_API_KEY`, or\n"
+                                "• Switch to Local FAISS (in-memory) instead."
+                            )
+                            with st.expander("How to set Pinecone API key"):
+                                st.markdown(
+                                    "- **Temporary (current session)**: paste it into the \"Pinecone API Key\" field above.\n"
+                                    "- **Persistent (Windows)**: run `setx PINECONE_API_KEY \"<YOUR_KEY>\"` in Powershell/Command Prompt and restart your session.\n"
+                                    "- **Persistent (.env)**: add `PINECONE_API_KEY=<YOUR_KEY>` to your `.env` file in the project root (you use python-dotenv)."
                                 )
-                                st.success(f"Indexed {len(res['chunks'])} chunks from {res['pages_count']} pages (index_type={res['index_type']}).")
-                                st.session_state["pdf_index_info"] = res
-                                st.session_state["pdf_chunks"] = res["chunks"]
-                                # ensure we stay on Analyze Large PDF tab and show summary area
-                                st.session_state["main_tab"] = "Analyze Large PDF"
-                                # optionally pre-generate a high-level summary (comment/uncomment to auto generate)
-                                # st.session_state["last_pdf_summary"] = summarize_chunks(res["chunks"])
-                        except Exception as e:
-                            print(f"Indexing failed: {e}")
-                            st.exception(e)
+                        else:
+                            try:
+                                with st.spinner("Processing..."):
+                                    res = process_and_index_pdf(
+                                        pdf_bytes=bytes_data,
+                                        doc_id=os.path.splitext(uploaded_pdf.name)[0],
+                                        use_pinecone=use_pinecone,
+                                        pinecone_api_key=pine_key,
+                                        pine_env=pine_env,
+                                        store_content_in_metadata=store_content_in_metadata,
+                                    )
+                                    st.success(f"Indexed {len(res['chunks'])} chunks from {res['pages_count']} pages (index_type={res['index_type']}).")
+                                    st.session_state["pdf_index_info"] = res
+                                    st.session_state["pdf_chunks"] = res["chunks"]
+                                    # ensure we stay on Analyze Large PDF tab and show summary area
+                                    st.session_state["main_tab"] = "Analyze Large PDF"
+                                    # optionally pre-generate a high-level summary (comment/uncomment to auto generate)
+                                    # st.session_state["last_pdf_summary"] = summarize_chunks(res["chunks"])
+                            except Exception as e:
+                                print(f"Indexing failed: {e}")
+                                st.exception(e)
 
-            else:
-                pass
-                # st.info("Upload a PDF file to use the large-doc parser.")
+                else:
+                    pass
+                    # st.info("Upload a PDF file to use the large-doc parser.")
 
+            elif file_type == "Audio File":
+                from utils.audio_transcribe import audio_transcribe
+                uploaded_audio = st.file_uploader("Upload an audio file", type = ["wav", "mp3", "flac", "ogg"], key = "audio_uploader")
+                if uploaded_audio:
+                    st.success("Audio File uploaded")
+
+                    if st.button("Transcribe Audio"):
+                        with st.spinner("Transcribing.."):
+                            try:
+                                audio_bytes = uploaded_audio.read()
+                                audio_buffer = io.BytesIO(audio_bytes)
+                                audio_buffer.seek(0)
+                                transcript = audio_transcribe(audio_buffer)
+                                if not transcript:
+                                    st.error("Transcription Failed")
+                                st.session_state["Audio_Transcription"] = transcript
+                                st.success("Transcription Complete")
+                            except Exception as e:
+                                st.error(f"Transcription Failed {e}")
+            
             # If there is an indexed doc in session, show quick controls
             if st.session_state.get("pdf_index_info"):
                 st.markdown("---")
@@ -805,6 +829,29 @@ def main():
                         except Exception as e:
                             pass
                             # print(f"RAG failed: {e}")
+            
+            elif st.session_state.get("Audio_Transcription"):
+
+                # displaying the full transcription
+                st.subheader("Audio_Transcription")
+                st.write(st.session_state.get("Audio_Transcription"))
+
+                # Summarization: store result in session_state to persist across reruns
+                if st.button("Generate Audio Summary"):
+                    try:
+                        with st.spinner("Generating Audio Summary"):
+                            
+                            summary = summarize_chunks([{"audio_transcript"}])
+                            st.session_state['Audio_summary'] = summary
+                            st.success("Summary generated")
+                    except Exception as e:
+                        st.write(f"Unable to generate summary due to error {e}")
+
+                # display summary if available
+                if st.session_state.get("Audio_summary"):
+                    st.subheader("Audio Summary")
+                    st.write(st.session_state.get("Audio_summary"))
+
             else:
                 pass
                 # st.info("No indexed document found in session. Upload & index a PDF in the left column first.")
