@@ -2,6 +2,7 @@
 streamlit>=1.28.0
 PyMuPDF>=1.23.0
 python-dotenv>=1.0.0
+pdfplumber>=0.11.0
 
 # Local AI with Ollama (no cloud API dependencies)
 # Note: Ollama should be installed separately on the system
@@ -16,6 +17,7 @@ requests>=2.31.0
 
 # Document processing and utilities
 regex>=2023.6.3
+nltk>=3.9.0
 
 # LangChain for advanced document processing and RAG workflows
 langchain>=1.0.0
@@ -25,6 +27,9 @@ langchain-text-splitters>=1.0.0
 
 # Pinecone vector database (NEW package name)
 pinecone>=5.0.0
+
+# Faiss for similarity search
+faiss-cpu>=1.13.1
 
 # Enhanced document processing and embeddings
 pypdf>=6.0.0
