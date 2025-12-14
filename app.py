@@ -608,7 +608,10 @@ def main():
                                             def _ollama_llm_call(prompt: str, max_tokens: int = 256):
                                                 # expect singleton to have a simple method like `generate(prompt, max_tokens)` - adapt as needed
                                                 try:
-                                                    if hasattr(ollama, "generate") and callable(ollama.generate):
+                                                    if hasattr(ollama, "sync_generate"):
+                                                        out = ollama.sync_generate(prompt = prompt, model = st.session_state.get("ollama_model"))
+                                                        return {"text": out.get("response", "").strip()}
+                                                    elif hasattr(ollama, "generate") and callable(ollama.generate):
                                                         out = ollama.generate(prompt, max_tokens=max_tokens)
                                                         # adapt return shape
                                                         if isinstance(out, dict) and out.get("text"):
