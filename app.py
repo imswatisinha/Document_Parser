@@ -1,489 +1,10 @@
-# # app.py (optimized Streamlit entrypoint) — updated to use an Ollama singleton
-# import os
-# import asyncio
-# import time
-# import streamlit as st
-# from dotenv import load_dotenv
-
-# # Local imports (assume these modules exist as in your repo)
-# from parser.semantic_classifier import generate_radar_chart, zero_shot_skill_scores
-# from utils.pdf_parser import extract_text_from_pdf
-# from utils.json_formatter import safe_json_dumps
-# # replaced integrate_ollama_parser imports with singleton-aware loader
-# from utils.document_chunker import DocumentChunker
-# from utils.pinecone_vector_store import setup_pinecone_interface, display_pinecone_stats
-
-# # Page config
-# st.set_page_config(
-#     page_title="Document Parser LLM",
-#     page_icon="📄",
-#     layout="wide",
-#     initial_sidebar_state="expanded"
-# )
-
-# try:
-#     load_dotenv()
-# except Exception:
-#     pass
-
-# # Create uploads dir
-# os.makedirs("uploads", exist_ok=True)
-
-# CANDIDATE_LABELS = [
-#     "Python", "C++", "Machine Learning", "Deep Learning",
-#     "Cloud", "Azure", "AWS", "Communication",
-#     "Leadership", "Research", "Data Analysis",
-#     "Teamwork", "Web Development", "Frontend",
-#     "Backend", "DevOps"
-# ]
-
-# @st.cache_data(show_spinner=False)
-# def load_css():
-#     """Load and cache CSS to avoid re-reading on every rerun.""" 
-#     css_path = "assets/style.css"
-#     if os.path.exists(css_path):
-#         with open(css_path, "r", encoding="utf-8") as f:
-#             return f"<style>{f.read()}</style>"
-#     return ""
-
-# # -------------------------
-# # Ollama singleton loader
-# # -------------------------
-# def _import_ollama_singleton():
-#     """
-#     Try several common symbol names/locations for an Ollama singleton or factory in your utils.
-#     Returns the singleton instance or None.
-#     """
-#     candidates = [
-#         # common module / symbol combos to try
-#         ("utils.ollama_parser", "Ollama_Singleton"),
-#         ("utils.ollama_parser", "ollama_Singleton"),
-#         ("utils.ollama_parser", "OllamaSingleton"),
-#         ("utils.ollama_parser", "ollama_singleton"),
-#         ("utils.ollama_parser", "OllamaParser"),  # fallback class
-#         ("utils.ollama_singleton", "Ollama_Singleton"),
-#         ("utils.ollama_singleton", "OllamaSingleton"),
-#         ("utils.ollama_singleton", "ollama_singleton"),
-#         ("utils", "ollama_Singleton"),
-#         ("utils", "ollama_singleton"),
-#     ]
-
-#     for module_name, symbol in candidates:
-#         try:
-#             module = __import__(module_name, fromlist=[symbol])
-#             obj = getattr(module, symbol, None)
-#             if obj is None:
-#                 continue
-
-#             # If obj is a callable factory or class, try to get instance
-#             try:
-#                 # If it's already an instance (has typical attrs), return directly
-#                 if not callable(obj) and hasattr(obj, "is_connected"):
-#                     return obj
-
-#                 # If class has an 'instance' or 'get_instance' method, use it
-#                 if hasattr(obj, "instance") and callable(getattr(obj, "instance")):
-#                     return obj.instance()
-#                 if hasattr(obj, "get_instance") and callable(getattr(obj, "get_instance")):
-#                     return obj.get_instance()
-
-#                 # If it's a class, instantiate (no args). If it's a function, call it.
-#                 if callable(obj):
-#                     try:
-#                         inst = obj()  # attempt no-arg constructor/factory
-#                         return inst
-#                     except Exception:
-#                         # can't instantiate — skip
-#                         continue
-#             except Exception:
-#                 continue
-#         except Exception:
-#             continue
-#     return None
-
-# def _ensure_ollama_in_session():
-#     """Load the singleton and set session state keys like older integrate_ollama_parser did."""
-#     if st.session_state.get("ollama_parser") is None:
-#         singleton = _import_ollama_singleton()
-#         if singleton:
-#             st.session_state["ollama_parser"] = singleton
-#             # ensure a few common session keys exist
-#             if "ollama_model" not in st.session_state:
-#                 st.session_state["ollama_model"] = getattr(singleton, "selected_model", None) or None
-#             # store available models if present
-#             available = getattr(singleton, "available_models", None)
-#             if available is not None:
-#                 st.session_state["ollama_available_models"] = available
-#             return True
-#         else:
-#             return False
-#     else:
-#         return True
-
-# # -------------------------
-# # Small helpers
-# # -------------------------
-# def _show_streaming_output(generator, progress_bar, output_box, timeout=300):
-#     """
-#     Consume async generator returned by OllamaParser.parse_resume_stream
-#     and update UI with partial content. Returns the accumulated string.
-#     """
-#     accumulated = ""
-#     start = time.time()
-#     try:
-#         # If running in Streamlit (synchronous), use asyncio.run to consume the async generator
-#         async def _consume():
-#             nonlocal accumulated
-#             async for chunk in generator:
-#                 accumulated += chunk
-#                 # update a small trailing preview (keeps UI snappy)
-#                 preview = accumulated[-8000:]  # show last N chars
-#                 output_box.code(preview)
-#                 elapsed = time.time() - start
-#                 # update progress bar heuristically (can't know exact progress)
-#                 # alternate progress to indicate liveliness
-#                 progress_bar.progress(min(0.95, elapsed / max(10.0, timeout)))
-#             return accumulated
-
-#         return asyncio.run(_consume())
-#     except Exception as e:
-#         # If streaming failed (e.g., aiohttp not available), just return partial accumulated text
-#         st.warning(f"Streaming unavailable or failed: {e}. Falling back to blocking parse.")
-#         return accumulated
-
-# # -------------------------
-# # Main
-# # -------------------------
-# def main():
-#     # Load cached CSS
-#     css = load_css()
-#     if css:
-#         st.markdown(css, unsafe_allow_html=True)
-
-#     st.title("📄 Document Parser with Local AI")
-#     st.markdown("Upload PDFs and get intelligent analysis with local LLMs (Ollama) + RAG")
-
-#     # Sidebar: Ollama setup + vector DB selection + chunking options
-#     with st.sidebar:
-#         st.header("🦙 Ollama Local AI (singleton)")
-#         ollama_ready = _ensure_ollama_in_session()
-#         if ollama_ready:
-#             st.success("✅ Ollama singleton loaded into session")
-#             parser_obj = st.session_state.get("ollama_parser")
-#             # Determine readiness using likely attributes
-#             is_connected = getattr(parser_obj, "is_connected", None)
-#             is_ready = getattr(parser_obj, "is_ready", None)
-#             ready_flag = bool(is_connected or is_ready or getattr(parser_obj, "connected", False))
-#             if ready_flag:
-#                 st.success("✅ Ollama is ready")
-#             else:
-#                 st.info("Ollama singleton loaded but not currently connected/ready.")
-
-#             # show available model selection stored by singleton
-#             available_models = st.session_state.get("ollama_available_models") or getattr(parser_obj, "available_models", []) or []
-#             if available_models:
-#                 st.write("Available models:")
-#                 for m in available_models:
-#                     st.write(f"• {m}")
-#                 st.info("Model selection is automatic; you may override in advanced settings.")
-#         else:
-#             st.error("⚠️ Ollama singleton not found. Make sure your utils module exposes a singleton object (Ollama_Singleton / OllamaSingleton / ollama_singleton / OllamaParser).")
-
-#         st.header("🗄️ Vector Database")
-#         vector_db_option = st.radio("Choose vector storage:", ["🧠 In-Memory (Local)", "🌲 Pinecone (Cloud)"])
-#         pinecone_store = None
-#         if vector_db_option.startswith("🌲"):
-#             pinecone_store = setup_pinecone_interface()
-#             if pinecone_store and getattr(pinecone_store, "is_initialized", False):
-#                 display_pinecone_stats(pinecone_store)
-#                 st.session_state["pinecone_store"] = pinecone_store
-
-#         st.header("📄 Document Processing")
-#         chunking_strategy = st.selectbox("Chunking strategy:", ["sections", "sliding_window", "pages"])
-#         if chunking_strategy == "sliding_window":
-#             # Use sentence-based UI but DocumentChunker may accept character sizes; adapt accordingly
-#             chunk_size_sentences = st.slider("Chunk size (sentences):", 3, 12, 6)
-#             overlap_sentences = st.slider("Overlap (sentences):", 0, 4, 1)
-#         else:
-#             chunk_size_sentences = None
-#             overlap_sentences = None
-
-#     col1, col2 = st.columns([1, 2])
-
-#     with col1:
-#         st.header("📁 Upload Document")
-#         uploaded_file = st.file_uploader("Choose a PDF file", type=["pdf"])
-#         if uploaded_file is not None:
-#             st.success(f"✅ Uploaded: {uploaded_file.name}")
-#             file_size_kb = uploaded_file.size / 1024
-#             st.write(f"**Size:** {file_size_kb:.1f} KB")
-
-#             if st.button("🚀 Extract & Parse Document"):
-#                 # Check Ollama readiness
-#                 parser_obj = st.session_state.get("ollama_parser")
-#                 if not parser_obj or not getattr(parser_obj, "is_connected", False) and not getattr(parser_obj, "is_ready", False):
-#                     st.error("Ollama not ready. Please start Ollama and install a model.")
-#                     return
-
-#                 # Extract text
-#                 with st.spinner("Extracting text from PDF..."):
-#                     combined_text, pages = extract_text_from_pdf(uploaded_file)
-#                     if not combined_text:
-#                         st.error("Failed to extract text from PDF")
-#                         return
-#                     st.session_state["raw_text"] = combined_text
-#                     st.session_state["pages"] = pages
-#                     st.success(f"Extracted {len(combined_text)} characters from {len(pages)} page(s)")
-
-#                 # Chunk document (use DocumentChunker implementation)
-#                 with st.spinner("Chunking document..."):
-#                     chunker = DocumentChunker()
-#                     if chunking_strategy == "sections":
-#                         chunks = chunker.chunk_by_sections(combined_text)
-#                     elif chunking_strategy == "sliding_window":
-#                         # If your chunker expects sentence counts, pass those, else adapt
-#                         chunks = chunker.chunk_by_sliding_window(combined_text, chunk_size_sentences, overlap_sentences)
-#                     else:
-#                         chunks = chunker.chunk_by_pages(pages)
-#                     st.session_state["chunks"] = chunks
-#                     st.success(f"Created {len(chunks)} chunks")
-
-#                 # If document small, use blocking sync parse (fast)
-#                 use_streaming = hasattr(parser_obj, "parse_resume_stream") and len(combined_text) >= 2000
-
-#                 parsed_data = None
-#                 # UI elements for streaming feedback
-#                 progress_bar = st.empty()
-#                 output_box = st.empty()
-#                 try:
-#                     if use_streaming:
-#                         progress_widget = st.progress(0.0)
-#                         output_box.info("Streaming parsing output (accumulating...)")
-#                         # Kick off async streaming generator from OllamaParser
-#                         try:
-#                             generator = parser_obj.parse_resume_stream(combined_text, model=None)
-#                             accumulated = _show_streaming_output(generator, progress_widget, output_box, timeout=300)
-#                             # Attempt to extract JSON from accumulated string
-#                             # reuse helper from OllamaParser if available
-#                             parsed = None
-#                             if hasattr(parser_obj, "_extract_json_from_text"):
-#                                 parsed = parser_obj._extract_json_from_text(accumulated)
-#                             else:
-#                                 # naive extraction
-#                                 import re, json
-#                                 m = re.search(r'\{.*\}', accumulated, re.DOTALL)
-#                                 if m:
-#                                     parsed = json.loads(m.group())
-#                             if parsed:
-#                                 parsed_data = parsed
-#                                 st.success("✅ Parsing complete (stream).")
-#                             else:
-#                                 st.warning("Could not extract structured JSON from streamed output — trying blocking parse.")
-#                         except Exception as e:
-#                             st.warning(f"Streaming path failed: {e}. Falling back to blocking parse.")
-
-#                     if parsed_data is None:
-#                         # Blocking sync parse fallback (safe)
-#                         with st.spinner("Running blocking parse (this may take a moment)..."):
-#                             parsed_result = parser_obj.parse_resume_sync(combined_text, model=None)
-#                             parsed_data = parsed_result if isinstance(parsed_result, dict) else {}
-#                             st.success("✅ Parsing complete (sync).")
-
-#                     # Normalize structure if the parsed_data is raw dict coming from OllamaParser or service
-#                     st.session_state["parsed_data"] = parsed_data
-
-#                     # After parsing, set up vector store or in-memory RAG
-#                     if vector_db_option.startswith("🌲") and st.session_state.get("pinecone_store"):
-#                         pinecone_store = st.session_state.get("pinecone_store")
-#                         with st.spinner("Storing chunks in Pinecone..."):
-#                             success = pinecone_store.add_documents(chunks, f"doc_{uploaded_file.name}")
-#                             if success:
-#                                 qa_ok = pinecone_store.setup_qa_chain(parser_obj.selected_model or "llama3.2:3b")
-#                                 if qa_ok:
-#                                     st.session_state["pinecone_qa_ready"] = True
-#                                     st.success("✅ Pinecone storage & QA ready")
-#                                 else:
-#                                     st.warning("⚠️ Pinecone QA chain setup failed")
-#                             else:
-#                                 st.error("❌ Failed to upsert to Pinecone")
-#                     else:
-#                         # in-memory RAG (your existing class)
-#                         if "ollama_rag" in st.session_state:
-#                             with st.spinner("Setting up in-memory vector search..."):
-#                                 rag_success = st.session_state.ollama_rag.setup_rag_with_chunks(chunks)
-#                                 if rag_success:
-#                                     st.session_state["in_memory_rag_ready"] = True
-#                                     st.success("✅ In-memory RAG ready")
-#                                 else:
-#                                     st.warning("⚠️ In-memory RAG setup failed")
-#                         else:
-#                             st.info("In-memory RAG unavailable; skip vector setup.")
-#                 except Exception as e:
-#                     st.error(f"Parsing failed: {e}")
-#                     st.exception(e)
-
-#     # Right column: results and QA
-#     with col2:
-#         st.header("📊 Document Analysis")
-#         if "parsed_data" in st.session_state:
-#             parsed_struct = st.session_state["parsed_data"]
-
-#             # Try friendly formatted display first (shared helper)
-#             displayed = False
-#             try:
-#                 from utils.llm_parser import format_document_display
-#                 format_document_display(parsed_struct)
-#                 displayed = True
-#             except Exception:
-#                 displayed = False
-
-#             # Friendly header
-#             try:
-#                 provider = parsed_struct.get("ai_provider") or parsed_struct.get("_source") or parsed_struct.get("provider", "AI")
-#                 model = parsed_struct.get("model") or parsed_struct.get("_model", st.session_state.get("ollama_model", "unknown"))
-#                 st.info(f"Parsed by: {provider} • Model: {model}")
-#             except Exception:
-#                 pass
-
-#             # Chunk stats
-#             chunks = st.session_state.get("chunks", [])
-#             st.subheader("📄 Document Chunks")
-#             col_a, col_b, col_c = st.columns(3)
-#             col_a.metric("Total Chunks", len(chunks))
-#             avg_len = sum(len(c.get("content", "")) for c in chunks) // len(chunks) if chunks else 0
-#             col_b.metric("Avg Chunk Length", f"{avg_len} chars")
-#             col_c.metric("Strategy", chunking_strategy.title())
-
-#             with st.expander("🔍 View Document Chunks"):
-#                 for i, chunk in enumerate(chunks):
-#                     st.write(f"**Chunk {i+1}** ({chunk.get('type', 'text')})")
-#                     if 'page' in chunk:
-#                         st.caption(f"Page: {chunk['page']}")
-#                     st.text_area(f"chunk_{i+1}", value=chunk.get('content', '')[:1500], height=140, disabled=True)
-
-#             # Raw text view
-#             with st.expander("📝 Raw Extracted Text"):
-#                 pages = st.session_state.get("pages", [])
-#                 if pages:
-#                     idx = st.selectbox("Select page", list(range(1, len(pages) + 1)))
-#                     st.text_area(f"Page {idx}", value=pages[idx - 1], height=300, disabled=True)
-#                 else:
-#                     st.text_area("Combined text", value=st.session_state.get("raw_text", ""), height=300, disabled=True)
-
-#             # Raw JSON accordion
-#             with st.expander("🔧 View Raw JSON Data (click to expand)", expanded=False):
-#                 try:
-#                     st.json(parsed_struct)
-#                 except Exception:
-#                     try:
-#                         full_json = safe_json_dumps(parsed_struct)
-#                         st.code(full_json, language="json")
-#                     except Exception:
-#                         st.text(str(parsed_struct))
-#                 try:
-#                     full_json = safe_json_dumps(parsed_struct)
-#                     st.download_button("💾 Download full JSON", data=full_json, file_name="parsed_full.json", mime="application/json")
-#                 except Exception:
-#                     pass
-
-#             # If formatted display didn't run, show a quick glance
-#             if not displayed:
-#                 personal = parsed_struct.get("personal_info", {}) or parsed_struct.get("personal", {})
-#                 if personal:
-#                     name = personal.get("name") or personal.get("full_name")
-#                     email = personal.get("email")
-#                     if name:
-#                         st.subheader(f"👤 {name}")
-#                     if email:
-#                         st.write(f"📧 {email}")
-
-#             # Continue with Semantic classification and Q&A (unchanged)
-#             # ...
-#         # Semantic classification
-#                 st.subheader("📊 Semantic Skill Classification")
-#                 if st.session_state.get("raw_text"):
-#                     with st.spinner("Running zero-shot classification..."):
-#                         try:
-#                             scores = zero_shot_skill_scores(st.session_state["raw_text"], CANDIDATE_LABELS)
-#                             skill_pairs = list(zip(scores.get("labels", []), scores.get("scores", [])))
-#                             skill_pairs.sort(key=lambda x: x[1], reverse=True)
-#                             st.table([{"Skill": s, "Confidence": f"{p:.2f}"} for s, p in skill_pairs])
-#                             if skill_pairs:
-#                                 labels, vals = zip(*skill_pairs)
-#                                 chart_path = generate_radar_chart(list(labels), list(vals))
-#                                 st.image(chart_path, caption="Skill confidence radar")
-#                         except Exception as e:
-#                             st.warning(f"Skill classification failed: {e}")
-#                 else:
-#                     st.info("Run parsing to enable skill classification.")
-
-#                 # Q&A
-#                 qa_ready = st.session_state.get("pinecone_qa_ready", False) or st.session_state.get("in_memory_rag_ready", False)
-#                 if qa_ready:
-#                     st.divider()
-#                     st.header("💬 Document Q&A")
-#                     if st.session_state.get("pinecone_qa_ready", False):
-#                         st.info("Using Pinecone + LangChain")
-#                     else:
-#                         st.info("Using in-memory RAG")
-
-#                     question = st.text_area("Ask a question about the document:", height=80)
-#                     if st.button("Get AI Analysis"):
-#                         if not question:
-#                             st.warning("Please enter a question.")
-#                         else:
-#                             with st.spinner("Generating answer..."):
-#                                 try:
-#                                     if st.session_state.get("pinecone_qa_ready", False):
-#                                         res = st.session_state["pinecone_store"].ask_question(question)
-#                                         if "error" in res:
-#                                             st.error(res["error"])
-#                                         else:
-#                                             st.write(res.get("answer", ""))
-#                                             # show sources if present
-#                                             if res.get("source_documents"):
-#                                                 with st.expander("Source documents"):
-#                                                     for sd in res["source_documents"]:
-#                                                         st.text_area("Source", value=sd.get("content","")[:800], height=120, disabled=True)
-#                                     else:
-#                                         # in-memory RAG
-#                                         rag = st.session_state.get("ollama_rag")
-#                                         if rag:
-#                                             res = rag.ask_question(question)
-#                                             if "error" in res:
-#                                                 st.error(res["error"])
-#                                             else:
-#                                                 st.write(res.get("answer", ""))
-#                                                 if res.get("sources"):
-#                                                     with st.expander("Source chunks"):
-#                                                         for s in res["sources"]:
-#                                                             st.text_area("Chunk", value=s.get("content","")[:800], height=120, disabled=True)
-#                                         else:
-#                                             st.error("In-memory RAG not initialized.")
-#                                 except Exception as e:
-#                                     st.error(f"QA failed: {e}")
-#         else:
-#             st.info("Upload a PDF to parse and analyze.")
-#             with st.expander("💡 Vector DB options"):
-#                 st.write("🧠 In-memory: fast, ephemeral.")
-#             st.write("🌲 Pinecone: persistent, multi-document, requires keys.")
-
-
-            
-
-
-#     st.markdown("---")
-#     st.caption("Local AI Document Parser • Built with Streamlit & Ollama")
-
-# if __name__ == "__main__":
-#     main()
-
-# app.py (optimized Streamlit entrypoint) — uses utils.ollama_singleton.get_ollama
+# app.py (patched)
 import os
 import asyncio
 import time
 import re
 import json
+import io
 import streamlit as st
 from dotenv import load_dotenv
 
@@ -491,9 +12,31 @@ from dotenv import load_dotenv
 from parser.semantic_classifier import generate_radar_chart, zero_shot_skill_scores
 from utils.pdf_parser import extract_text_from_pdf
 from utils.json_formatter import safe_json_dumps
+
+# NEW: Use the smart chunker and RAG engine / agent we designed
+from parser.chunking import smart_chunk_text
+from parser.rag_engine import (
+    build_index,
+    init_tfidf,
+    save_index,
+    load_index,
+    retrieve_dense,
+    retrieve_and_rerank,
+    hybrid_retrieve
+)
+from parser.rag_agent import generate_answer
+
 # replaced integrate_ollama_parser imports with singleton-aware loader
-from utils.document_chunker import DocumentChunker
+from utils.document_chunker import DocumentChunker  # keep for fallback if needed
 from utils.pinecone_vector_store import setup_pinecone_interface, display_pinecone_stats
+
+# NEW: pdf_rag helpers for large-doc tab (make sure utils/pdf_rag.py exists)
+from utils.pdf_rag import (
+    process_and_index_pdf,
+    summarize_chunks,
+    rag_answer_with_retrieval_pinecone,
+    rag_answer_with_local_faiss,
+)
 
 # Page config
 st.set_page_config(
@@ -688,7 +231,7 @@ def _show_streaming_output(generator, progress_bar, output_box, timeout=300):
         return accumulated
 
 # -------------------------
-# Main
+# Main (with persistent radio for tabs)
 # -------------------------
 def main():
     # Load cached CSS
@@ -698,6 +241,16 @@ def main():
 
     st.title("📄 Document Parser with Local AI")
     st.markdown("Upload PDFs and get intelligent analysis with local LLMs (Ollama) + RAG")
+
+    # persistent tab selector using session_state, so it survives reruns (e.g., file upload)
+    if "main_tab" not in st.session_state:
+        st.session_state["main_tab"] = "Home"
+    # radio will set st.session_state['main_tab_radio']; reflect into main_tab
+    selected = st.radio("Choose view:", ("Home", "PDF Parser"),
+                        index=0 if st.session_state.get("main_tab", "Home") == "Home" else 1,
+                        horizontal=True, key="main_tab_radio")
+    st.session_state["main_tab"] = selected
+    current_tab = st.session_state["main_tab"]
 
     # Sidebar: Ollama setup + vector DB selection + chunking options
     with st.sidebar:
@@ -722,9 +275,11 @@ def main():
                 for m in available_models:
                     st.write(f"• {m}")
                 st.info("Model selection is automatic; override in advanced settings if needed.")
+            
+            # Initialize OllamaRAGRetriever if not already in session
             if "ollama_rag" not in st.session_state:
                 from utils.rag_retriever import OllamaRAGRetriever
-                st.session_state.ollama_rag = OllamaRAGRetirever()
+                st.session_state.ollama_rag = OllamaRAGRetriever()
         else:
             st.error("⚠️ Ollama singleton not found. Make sure your utils module exposes a singleton (e.g., `ollama_singleton` or `OllamaParser`).")
 
@@ -732,6 +287,7 @@ def main():
         vector_db_option = st.radio("Choose vector storage:", ["🧠 In-Memory (Local)", "🌲 Pinecone (Cloud)"])
         pinecone_store = None
         if vector_db_option.startswith("🌲"):
+            # setup_pinecone_interface should populate session or return store
             pinecone_store = setup_pinecone_interface()
             if pinecone_store and getattr(pinecone_store, "is_initialized", False):
                 display_pinecone_stats(pinecone_store)
@@ -747,281 +303,523 @@ def main():
             chunk_size_sentences = None
             overlap_sentences = None
 
-    col1, col2 = st.columns([1, 2])
+        # Large PDF parser info
+        st.markdown("---")
+        st.subheader("Large PDF parser (for >35 pages)")
+        st.info("📊 Chunking: 3500 characters per chunk with 1000 character overlap")
+        st.write("Choose Pinecone to persist vector data for later queries (recommended for many/large docs).")
 
-    with col1:
-        st.header("📁 Upload Document")
-        uploaded_file = st.file_uploader("Choose a PDF file", type=["pdf"])
-        if uploaded_file is not None:
-            st.success(f"✅ Uploaded: {uploaded_file.name}")
-            file_size_kb = uploaded_file.size / 1024
-            st.write(f"**Size:** {file_size_kb:.1f} KB")
+    # -------------------------
+    # HOME view (keeps your existing flow)
+    # -------------------------
+    if current_tab == "Home":
+        col1, col2 = st.columns([1, 2])
 
-            if st.button("🚀 Extract & Parse Document"):
-                # Check Ollama readiness
-                parser_obj = st.session_state.get("ollama_parser")
-                if not parser_obj or (not getattr(parser_obj, "is_connected", False) and not getattr(parser_obj, "is_ready", False)):
-                    st.error("Ollama not ready. Please start Ollama and install a model.")
-                    return
+        with col1:
+            st.header("📁 Upload Document")
+            uploaded_file = st.file_uploader("Choose a PDF file", type=["pdf"])
+            if uploaded_file is not None:
+                st.success(f"✅ Uploaded: {uploaded_file.name}")
+                file_size_kb = uploaded_file.size / 1024
+                st.write(f"**Size:** {file_size_kb:.1f} KB")
 
-                # Extract text
-                with st.spinner("Extracting text from PDF..."):
-                    combined_text, pages = extract_text_from_pdf(uploaded_file)
-                    if not combined_text:
-                        st.error("Failed to extract text from PDF")
+                if st.button("🚀 Extract & Parse Document"):
+                    # Check Ollama readiness
+                    parser_obj = st.session_state.get("ollama_parser")
+                    if not parser_obj or (not getattr(parser_obj, "is_connected", False) and not getattr(parser_obj, "is_ready", False)):
+                        st.error("Ollama not ready. Please start Ollama and install a model.")
                         return
-                    st.session_state["raw_text"] = combined_text
-                    st.session_state["pages"] = pages
-                    st.success(f"Extracted {len(combined_text)} characters from {len(pages)} page(s)")
 
-                # Chunk document (use DocumentChunker implementation)
-                with st.spinner("Chunking document..."):
-                    chunker = DocumentChunker()
-                    if chunking_strategy == "sections":
-                        chunks = chunker.chunk_by_sections(combined_text)
-                    elif chunking_strategy == "sliding_window":
-                        # If your chunker expects sentence counts, pass those, else adapt
-                        chunks = chunker.chunk_by_sliding_window(combined_text, chunk_size_sentences, overlap_sentences)
-                    else:
-                        chunks = chunker.chunk_by_pages(pages)
-                    st.session_state["chunks"] = chunks
-                    st.success(f"Created {len(chunks)} chunks")
+                    # Extract text
+                    with st.spinner("Extracting text from PDF..."):
+                        combined_text, pages = extract_text_from_pdf(uploaded_file)
+                        if not combined_text:
+                            st.error("Failed to extract text from PDF")
+                            return
+                        st.session_state["raw_text"] = combined_text
+                        st.session_state["pages"] = pages
+                        st.success(f"Extracted {len(combined_text)} characters from {len(pages)} page(s)")
 
-                # If document small, use blocking sync parse (fast)
-                use_streaming = False
-
-                parsed_data = None
-                # UI elements for streaming feedback
-                progress_bar = st.empty()
-                output_box = st.empty()
-                try:
-                    if use_streaming:
-                        progress_widget = st.progress(0.0)
-                        output_box.info("Processing (live preview shown)...")
-                        # Kick off async streaming generator from OllamaParser
+                    # Chunk document using smart_chunk_text (new)
+                    with st.spinner("Chunking document with smart_chunk_text..."):
                         try:
-                            generator = parser_obj.parse_resume_stream(combined_text, model=None)
-                            accumulated = _show_streaming_output(generator, progress_widget, output_box, timeout=300)
-                            # Attempt to extract JSON from accumulated string
-                            parsed = None
-                            if hasattr(parser_obj, "_extract_json_from_text"):
-                                parsed = parser_obj._extract_json_from_text(accumulated)
-                            else:
-                                # naive extraction
-                                m = re.search(r'\{.*\}', accumulated, re.DOTALL)
-                                if m:
-                                    try:
-                                        parsed = json.loads(m.group())
-                                    except Exception:
-                                        parsed = None
-                            if parsed:
-                                parsed_data = parsed
-                                st.success("✅ Parsing complete (stream).")
-                            else:
-                                st.info("Could not find structured JSON in streamed output — trying stable parse.")
+                            # smart_chunk_text returns list[str] — convert to chunk metadata dicts expected elsewhere
+                            raw_chunks = smart_chunk_text(combined_text, max_tokens=500, overlap_tokens=100)
+                            chunks_meta = []
+                            for i, c in enumerate(raw_chunks):
+                                chunks_meta.append({
+                                    "chunk_id": f"{uploaded_file.name}_chunk_{i}",
+                                    "heading": "Unknown",
+                                    "text": c
+                                })
+                            # store both raw text chunks (list of strings) and metadata
+                            st.session_state["chunks"] = raw_chunks
+                            st.session_state["chunks_meta"] = chunks_meta
+                            st.success(f"Created {len(raw_chunks)} chunks (smart_chunk_text)")
                         except Exception as e:
-                            st.info("Live streaming failed — using stable blocking parse.")
-                            st.warning(str(e))
+                            st.error(f"Chunking failed: {e}")
+                            # fallback: DocumentChunker if available
+                            try:
+                                chunker = DocumentChunker()
+                                fallback = chunker.chunk_by_sections(combined_text)
+                                st.session_state["chunks"] = [c.get("content", "") for c in fallback]
+                                st.session_state["chunks_meta"] = [{
+                                    "chunk_id": c.get("id", f"chunk_{i}"),
+                                    "heading": c.get("title", "Unknown"),
+                                    "text": c.get("content", "")
+                                } for i, c in enumerate(fallback)]
+                                st.success("Fallback chunking using DocumentChunker succeeded.")
+                            except Exception as e2:
+                                st.error(f"Fallback chunking also failed: {e2}")
+                                return
 
-                    if parsed_data is None:
-                        # Blocking sync parse fallback (safe)
-                        with st.spinner("Running blocking parse (this may take a moment)..."):
-                            parsed_result = parser_obj.parse_resume_sync(combined_text, model=None)
-                            parsed_data = parsed_result if isinstance(parsed_result, dict) else {}
-                            st.success("✅ Parsing complete (sync).")
+                    # If document small, use blocking sync parse (fast)
+                    use_streaming = False
 
-                    # Normalize structure if the parsed_data is raw dict coming from OllamaParser or service
-                    st.session_state["parsed_data"] = parsed_data
-
-                    # After parsing, set up vector store or in-memory RAG
-                    if vector_db_option.startswith("🌲") and st.session_state.get("pinecone_store"):
-                        pinecone_store = st.session_state.get("pinecone_store")
-                        with st.spinner("Storing chunks in Pinecone..."):
-                            success = pinecone_store.add_documents(chunks, f"doc_{uploaded_file.name}")
-                            if success:
-                                qa_ok = pinecone_store.setup_qa_chain(parser_obj.selected_model or "llama3.2:3b")
-                                if qa_ok:
-                                    st.session_state["pinecone_qa_ready"] = True
-                                    st.success("✅ Pinecone storage & QA ready")
-                                else:
-                                    st.warning("⚠️ Pinecone QA chain setup failed")
-                            else:
-                                st.error("❌ Failed to upsert to Pinecone")
-                    else:
-                        # in-memory RAG (your existing class)
-                        if "ollama_rag" in st.session_state:
-                            with st.spinner("Setting up in-memory vector search..."):
-                                rag_success = st.session_state.ollama_rag.setup_rag_with_chunks(chunks)
-                                if rag_success:
-                                    st.session_state["in_memory_rag_ready"] = True
-                                    st.success("✅ In-memory RAG ready")
-                                else:
-                                    st.warning("⚠️ In-memory RAG setup failed")
-                        else:
-                            st.info("In-memory RAG unavailable; skip vector setup.")
-                except Exception as e:
-                    st.error("Parsing failed — see details below.")
-                    st.exception(e)
-
-    # Right column: results and QA
-    with col2:
-        st.header("📊 Document Analysis")
-        if "parsed_data" in st.session_state:
-            parsed_struct = st.session_state["parsed_data"]
-
-            # Try friendly formatted display first (shared helper)
-            displayed = False
-            try:
-                from utils.llm_parser import format_document_display
-                format_document_display(parsed_struct)
-                displayed = True
-            except Exception:
-                displayed = False
-
-            # Friendly header
-            try:
-                provider = parsed_struct.get("ai_provider") or parsed_struct.get("_source") or parsed_struct.get("provider", "AI")
-                model = parsed_struct.get("model") or parsed_struct.get("_model", st.session_state.get("ollama_model", "unknown"))
-                st.info(f"Parsed by: {provider} • Model: {model}")
-            except Exception:
-                pass
-
-            # Chunk stats
-            chunks = st.session_state.get("chunks", [])
-            st.subheader("📄 Document Chunks")
-            col_a, col_b, col_c = st.columns(3)
-            col_a.metric("Total Chunks", len(chunks))
-            avg_len = sum(len(c.get("content", "")) for c in chunks) // len(chunks) if chunks else 0
-            col_b.metric("Avg Chunk Length", f"{avg_len} chars")
-            col_c.metric("Strategy", chunking_strategy.title())
-
-            with st.expander("🔍 View Document Chunks"):
-                for i, chunk in enumerate(chunks):
-                    st.write(f"**Chunk {i+1}** ({chunk.get('type', 'text')})")
-                    if 'page' in chunk:
-                        st.caption(f"Page: {chunk['page']}")
-                    st.text_area(f"chunk_{i+1}", value=chunk.get('content', '')[:1500], height=140, disabled=True)
-
-            # Raw text view
-            with st.expander("📝 Raw Extracted Text"):
-                pages = st.session_state.get("pages", [])
-                if pages:
-                    idx = st.selectbox("Select page", list(range(1, len(pages) + 1)))
-                    st.text_area(f"Page {idx}", value=pages[idx - 1], height=300, disabled=True)
-                else:
-                    st.text_area("Combined text", value=st.session_state.get("raw_text", ""), height=300, disabled=True)
-
-            # Raw JSON accordion
-            with st.expander("🔧 View Raw JSON Data (click to expand)", expanded=False):
-                try:
-                    st.json(parsed_struct)
-                except Exception:
+                    parsed_data = None
+                    # UI elements for streaming feedback
+                    progress_bar = st.empty()
+                    output_box = st.empty()
                     try:
-                        full_json = safe_json_dumps(parsed_struct)
-                        st.code(full_json, language="json")
-                    except Exception:
-                        st.text(str(parsed_struct))
+                        if use_streaming:
+                            progress_widget = st.progress(0.0)
+                            output_box.info("Processing (live preview shown)...")
+                            # Kick off async streaming generator from OllamaParser
+                            try:
+                                generator = parser_obj.parse_resume_stream(combined_text, model=None)
+                                accumulated = _show_streaming_output(generator, progress_widget, output_box, timeout=300)
+                                # Attempt to extract JSON from accumulated string
+                                parsed = None
+                                if hasattr(parser_obj, "_extract_json_from_text"):
+                                    parsed = parser_obj._extract_json_from_text(accumulated)
+                                else:
+                                    # naive extraction
+                                    m = re.search(r'\{.*\}', accumulated, re.DOTALL)
+                                    if m:
+                                        try:
+                                            parsed = json.loads(m.group())
+                                        except Exception:
+                                            parsed = None
+                                if parsed:
+                                    parsed_data = parsed
+                                    st.success("✅ Parsing complete (stream).")
+                                else:
+                                    st.info("Could not find structured JSON in streamed output — trying stable parse.")
+                            except Exception as e:
+                                st.info("Live streaming failed — using stable blocking parse.")
+                                st.warning(str(e))
+
+                        if parsed_data is None:
+                            # Blocking sync parse fallback (safe)
+                            with st.spinner("Running blocking parse (this may take a moment)..."):
+                                parsed_result = parser_obj.parse_resume_sync(combined_text, model=None)
+                                parsed_data = parsed_result if isinstance(parsed_result, dict) else {}
+                                st.success("✅ Parsing complete (sync).")
+
+                        # Normalize structure if the parsed_data is raw dict coming from OllamaParser or service
+                        st.session_state["parsed_data"] = parsed_data
+
+                        # After parsing, set up vector store or in-memory RAG
+                        if vector_db_option.startswith("🌲") and st.session_state.get("pinecone_store"):
+                            pinecone_store = st.session_state.get("pinecone_store")
+                            with st.spinner("Storing chunks in Pinecone..."):
+                                success = pinecone_store.add_documents(st.session_state["chunks_meta"], f"doc_{uploaded_file.name}")
+                                if success:
+                                    qa_ok = pinecone_store.setup_qa_chain(parser_obj.selected_model or "llama3.2:3b")
+                                    if qa_ok:
+                                        st.session_state["pinecone_qa_ready"] = True
+                                        st.success("✅ Pinecone storage & QA ready")
+                                    else:
+                                        st.warning("⚠️ Pinecone QA chain setup failed")
+                                else:
+                                    st.error("❌ Failed to upsert to Pinecone")
+                        else:
+                            # in-memory RAG: build FAISS index using rag_engine
+                            try:
+                                with st.spinner("Building in-memory FAISS index..."):
+                                    chunks = st.session_state.get("chunks", [])
+                                    # build index and TF-IDF (store in session_state so it persists)
+                                    index, embeddings = build_index(chunks)
+                                    st.session_state["in_memory_index"] = index
+                                    st.session_state["in_memory_embeddings"] = embeddings
+                                    init_tfidf(chunks)  # populates module-level tfidf in rag_engine
+                                    # keep chunks_meta for agent prompt assembly
+                                    st.session_state["chunks_meta"] = st.session_state.get("chunks_meta", [{
+                                        "chunk_id": f"chunk_{i}", "heading": "Unknown", "text": chunks[i]
+                                    } for i in range(len(chunks))])
+                                    st.session_state["in_memory_rag_ready"] = True
+                                    st.success("✅ In-memory RAG ready (FAISS index built)")
+                            except Exception as e:
+                                st.warning(f"Failed to set up in-memory RAG: {e}")
+                    except Exception as e:
+                        st.error("Parsing failed — see details below.")
+                        st.exception(e)
+
+        # Right column: results and QA
+        with col2:
+            st.header("📊 Document Analysis")
+            if "parsed_data" in st.session_state:
+                parsed_struct = st.session_state["parsed_data"]
+
+                # Try friendly formatted display first (shared helper)
+                displayed = False
                 try:
-                    full_json = safe_json_dumps(parsed_struct)
-                    st.download_button("💾 Download full JSON", data=full_json, file_name="parsed_full.json", mime="application/json")
+                    from utils.llm_parser import format_document_display
+                    format_document_display(parsed_struct)
+                    displayed = True
+                except Exception:
+                    displayed = False
+
+                # Friendly header
+                try:
+                    provider = parsed_struct.get("ai_provider") or parsed_struct.get("_source") or parsed_struct.get("provider", "AI")
+                    model = parsed_struct.get("model") or parsed_struct.get("_model", st.session_state.get("ollama_model", "unknown"))
+                    st.info(f"Parsed by: {provider} • Model: {model}")
                 except Exception:
                     pass
 
-            # If formatted display didn't run, show a quick glance
-            if not displayed:
-                personal = parsed_struct.get("personal_info", {}) or parsed_struct.get("personal", {})
-                if personal:
-                    name = personal.get("name") or personal.get("full_name")
-                    email = personal.get("email")
-                    if name:
-                        st.subheader(f"👤 {name}")
-                    if email:
-                        st.write(f"📧 {email}")
+                # Chunk stats
+                chunks = st.session_state.get("chunks", [])
+                st.subheader("📄 Document Chunks")
+                col_a, col_b, col_c = st.columns(3)
+                col_a.metric("Total Chunks", len(chunks))
+                avg_len = sum(len(c) for c in chunks) // len(chunks) if chunks else 0
+                col_b.metric("Avg Chunk Length", f"{avg_len} chars")
+                col_c.metric("Strategy", chunking_strategy.title())
 
-            # Semantic classification
-            # Semantic classification (robust)
-            st.subheader("📊 Semantic Skill Classification")
-            if st.session_state.get("raw_text"):
-                with st.spinner("Running zero-shot classification..."):
-                    try:
-                        # get labels from session or CSV
-                        try:
-                            from parser.semantic_classifier import load_skill_labels_from_csv
-                            labels_to_use = st.session_state.get("candidate_labels") or load_skill_labels_from_csv()
-                        except Exception:
-                            labels_to_use = st.session_state.get("candidate_labels", [])
+                with st.expander("🔍 View Document Chunks"):
+                    for i, chunk_text in enumerate(chunks):
+                        meta = st.session_state.get("chunks_meta", [{}])[i] if st.session_state.get("chunks_meta") else {}
+                        st.write(f"**Chunk {i+1}** ({meta.get('heading','text')})")
+                        if meta.get('page'):
+                            st.caption(f"Page: {meta['page']}")
+                        st.text_area(f"chunk_{i+1}", value=chunk_text[:1500], height=140, disabled=True)
 
-                        if not labels_to_use:
-                            st.warning("No candidate labels available. Please add `assets/skills.csv` or upload labels in the sidebar.")
-                        else:
-                            scores = zero_shot_skill_scores(st.session_state["raw_text"], labels_to_use)
-                            if not scores or not scores.get("labels"):
-                                st.warning("Classifier returned no labels — check model availability or loader.")
-                            else:
-                                skill_pairs = list(zip(scores.get("labels", []), scores.get("scores", [])))
-                                skill_pairs.sort(key=lambda x: x[1], reverse=True)
-                                st.table([{"Skill": s, "Confidence": f"{p:.2f}"} for s, p in skill_pairs[:50]])
-                                if skill_pairs:
-                                    labels, vals = zip(*skill_pairs)
-                                    chart_path = generate_radar_chart(list(labels)[:12], list(vals)[:12])
-                                    st.image(chart_path, caption="Skill confidence radar")
-                    except Exception as e:
-                        st.warning(f"Skill classification failed: {e}")
-            else:
-                st.info("Run parsing to enable skill classification.")
-
-
-            # Q&A
-            qa_ready = st.session_state.get("pinecone_qa_ready", False) or st.session_state.get("in_memory_rag_ready", False)
-            if qa_ready:
-                st.divider()
-                st.header("💬 Document Q&A")
-                if st.session_state.get("pinecone_qa_ready", False):
-                    st.info("Using Pinecone + LangChain")
-                else:
-                    st.info("Using in-memory RAG")
-
-                question = st.text_area("Ask a question about the document:", height=80)
-                if st.button("Get AI Analysis"):
-                    if not question:
-                        st.warning("Please enter a question.")
+                # Raw text view
+                with st.expander("📝 Raw Extracted Text"):
+                    pages = st.session_state.get("pages", [])
+                    if pages:
+                        idx = st.selectbox("Select page", list(range(1, len(pages) + 1)))
+                        st.text_area(f"Page {idx}", value=pages[idx - 1], height=300, disabled=True)
                     else:
-                        with st.spinner("Generating answer..."):
+                        st.text_area("Combined text", value=st.session_state.get("raw_text", ""), height=300, disabled=True)
+
+                # Raw JSON accordion
+                with st.expander("🔧 View Raw JSON Data (click to expand)", expanded=False):
+                    try:
+                        st.json(parsed_struct)
+                    except Exception:
+                        try:
+                            full_json = safe_json_dumps(parsed_struct)
+                            st.code(full_json, language="json")
+                        except Exception:
+                            st.text(str(parsed_struct))
+                    try:
+                        full_json = safe_json_dumps(parsed_struct)
+                        st.download_button("💾 Download full JSON", data=full_json, file_name="parsed_full.json", mime="application/json")
+                    except Exception:
+                        pass
+
+                # If formatted display didn't run, show a quick glance
+                if not displayed:
+                    personal = parsed_struct.get("personal_info", {}) or parsed_struct.get("personal", {})
+                    if personal:
+                        name = personal.get("name") or personal.get("full_name")
+                        email = personal.get("email")
+                        if name:
+                            st.subheader(f"👤 {name}")
+                        if email:
+                            st.write(f"📧 {email}")
+
+                # Semantic classification
+                # Semantic classification (robust)
+                st.subheader("📊 Semantic Skill Classification")
+                if st.session_state.get("raw_text"):
+                    with st.spinner("Running zero-shot classification..."):
+                        try:
+                            # get labels from session or CSV
                             try:
-                                if st.session_state.get("pinecone_qa_ready", False):
-                                    res = st.session_state["pinecone_store"].ask_question(question)
-                                    if "error" in res:
-                                        st.error(res["error"])
-                                    else:
-                                        st.write(res.get("answer", ""))
-                                        # show sources if present
-                                        if res.get("source_documents"):
-                                            with st.expander("Source documents"):
-                                                for sd in res["source_documents"]:
-                                                    st.text_area("Source", value=sd.get("content","")[:800], height=120, disabled=True)
+                                from parser.semantic_classifier import load_skill_labels_from_csv
+                                labels_to_use = st.session_state.get("candidate_labels") or load_skill_labels_from_csv()
+                            except Exception:
+                                labels_to_use = st.session_state.get("candidate_labels", [])
+
+                            if not labels_to_use:
+                                st.warning("No candidate labels available. Please add `assets/skills.csv` or upload labels in the sidebar.")
+                            else:
+                                scores = zero_shot_skill_scores(st.session_state["raw_text"], labels_to_use)
+                                if not scores or not scores.get("labels"):
+                                    st.warning("Classifier returned no labels — check model availability or loader.")
                                 else:
-                                    # in-memory RAG
-                                    rag = st.session_state.get("ollama_rag")
-                                    if rag:
-                                        res = rag.ask_question(question)
+                                    skill_pairs = list(zip(scores.get("labels", []), scores.get("scores", [])))
+                                    skill_pairs.sort(key=lambda x: x[1], reverse=True)
+                                    st.table([{"Skill": s, "Confidence": f"{p:.2f}"} for s, p in skill_pairs[:50]])
+                                    if skill_pairs:
+                                        labels, vals = zip(*skill_pairs)
+                                        chart_path = generate_radar_chart(list(labels)[:12], list(vals)[:12])
+                                        st.image(chart_path, caption="Skill confidence radar")
+                        except Exception as e:
+                            st.warning(f"Skill classification failed: {e}")
+                else:
+                    st.info("Run parsing to enable skill classification.")
+
+
+                # Q&A
+                qa_ready = st.session_state.get("pinecone_qa_ready", False) or st.session_state.get("in_memory_rag_ready", False)
+                if qa_ready:
+                    st.divider()
+                    st.header("💬 Document Q&A")
+                    if st.session_state.get("pinecone_qa_ready", False):
+                        st.info("Using Pinecone + LangChain")
+                    else:
+                        st.info("Using in-memory RAG (FAISS + TF-IDF + Cross-Encoder)")
+
+                    question = st.text_area("Ask a question about the document:", height=80)
+                    if st.button("Get AI Analysis"):
+                        if not question:
+                            st.warning("Please enter a question.")
+                        else:
+                            with st.spinner("Generating answer..."):
+                                try:
+                                    if st.session_state.get("pinecone_qa_ready", False):
+                                        res = st.session_state["pinecone_store"].ask_question(question)
                                         if "error" in res:
                                             st.error(res["error"])
                                         else:
                                             st.write(res.get("answer", ""))
-                                            if res.get("sources"):
-                                                with st.expander("Source chunks"):
-                                                    for s in res["sources"]:
-                                                        st.text_area("Chunk", value=s.get("content","")[:800], height=120, disabled=True)
+                                            # show sources if present
+                                            if res.get("source_documents"):
+                                                with st.expander("Source documents"):
+                                                    for sd in res["source_documents"]:
+                                                        st.text_area("Source", value=sd.get("content","")[:800], height=120, disabled=True)
                                     else:
-                                        st.error("In-memory RAG not initialized.")
-                            except Exception as e:
-                                st.error(f"QA failed: {e}")
-        else:
-            st.info("Upload a PDF to parse and analyze.")
-            with st.expander("💡 Vector DB options"):
-                st.write("🧠 In-memory: fast, ephemeral.")
-                st.write("🌲 Pinecone: persistent, multi-document, requires keys.")
+                                        # in-memory RAG -> use rag_agent to assemble prompt & call LLM
+                                        if st.session_state.get("in_memory_rag_ready"):
+                                            index = st.session_state.get("in_memory_index")
+                                            embeddings = st.session_state.get("in_memory_embeddings")
+                                            chunks = st.session_state.get("chunks", [])
+                                            chunks_meta = st.session_state.get("chunks_meta", [{
+                                                "chunk_id": f"chunk_{i}", "heading": "Unknown", "text": chunks[i]
+                                            } for i in range(len(chunks))])
 
+                                            # call rag_agent.generate_answer (pluggable llm)
+                                            # We will try to use the ollama singleton as llm_call if available, otherwise rely on default that needs implementing
+                                            ollama = st.session_state.get("ollama_parser")
+                                            def _ollama_llm_call(prompt: str, max_tokens: int = 256):
+                                                # expect singleton to have a simple method like `generate(prompt, max_tokens)` - adapt as needed
+                                                try:
+                                                    if hasattr(ollama, "generate") and callable(ollama.generate):
+                                                        out = ollama.generate(prompt, max_tokens=max_tokens)
+                                                        # adapt return shape
+                                                        if isinstance(out, dict) and out.get("text"):
+                                                            return {"text": out.get("text")}
+                                                        if isinstance(out, str):
+                                                            return {"text": out}
+                                                        # try to extract simple field
+                                                        return {"text": str(out)}
+                                                    elif hasattr(ollama, "chat") and callable(ollama.chat):
+                                                        out = ollama.chat(prompt)
+                                                        return {"text": out.get("response", str(out)) if isinstance(out, dict) else str(out)}
+                                                    else:
+                                                        # Adapter not present — return placeholder
+                                                        return {"text": "OLLaMA adapter not implemented. Provide a llm_call adapter to rag_agent.generate_answer."}
+                                                except Exception as e:
+                                                    return {"text": f"LLM call failed: {e}"}
+
+                                            result = generate_answer(
+                                                user_query=question,
+                                                index=index,
+                                                chunks=chunks,
+                                                chunks_meta=chunks_meta,
+                                                embeddings=embeddings,
+                                                llm_call=_ollama_llm_call,
+                                                topk=50,
+                                                rerank_top=10,
+                                                tfidf_top=20
+                                            )
+
+                                            # display answer + used chunks
+                                            st.subheader("Answer")
+                                            st.write(result.get("answer", "No answer returned."))
+                                            if result.get("used_chunks"):
+                                                with st.expander("Used chunks (for citations & debugging)"):
+                                                    for ch in result["used_chunks"]:
+                                                        st.markdown(f"**{ch.get('id')}** — {ch.get('heading')}")
+                                                        st.text_area(f"chunk_{ch.get('id')}", value=ch.get("text","")[:1200], height=140, disabled=True)
+                                        else:
+                                            st.error("In-memory RAG not initialized.")
+                                except Exception as e:
+                                    st.error(f"QA failed: {e}")
+            else:
+                st.info("Upload a PDF to parse and analyze.")
+                with st.expander("💡 Vector DB options"):
+                    st.write("🧠 In-memory: fast, ephemeral.")
+                    st.write("🌲 Pinecone: persistent, multi-document, requires keys.")
+
+    # -------------------------
+    # PDF PARSER view (large-document flow)
+    # -------------------------
+    else:
+        st.header("📚 PDF Parser — Large Documents & RAG")
+        st.markdown("This tab is optimized for long PDFs (≥ ~35 pages). It chunks by pages, creates embeddings, and indexes into Pinecone or a local FAISS index. You can generate a document summary and ask RAG questions.")
+
+        col_left, col_right = st.columns([1, 2])
+
+        with col_left:
+            uploaded_pdf = st.file_uploader("Upload a PDF (for large-doc parsing)", type=["pdf"], key="pdf_rag_uploader")
+            if uploaded_pdf:
+                st.success(f"Selected: {uploaded_pdf.name}")
+                bytes_data = uploaded_pdf.read()
+                # quick page count check
+                import pdfplumber
+                try:
+                    with pdfplumber.open(io.BytesIO(bytes_data)) as pdf:
+                        detected_pages = len(pdf.pages)
+                except Exception:
+                    detected_pages = None
+                if detected_pages:
+                    st.write(f"Detected **{detected_pages}** pages.")
+                else:
+                    st.write("Could not detect page count (file may be corrupted).")
+
+                st.subheader("Indexing options")
+                use_pinecone = st.radio("Index to:", ["🌲 Pinecone (recommended)", "🧠 Local FAISS (in-memory)"]) == "🌲 Pinecone (recommended)"
+                store_content_in_metadata = st.checkbox("Store chunk content in Pinecone metadata (convenient, increases storage)", value=False)
+
+                # Optional Pinecone inputs if not already set via setup_pinecone_interface
+                pine_key = None
+                pine_env = None
+                if use_pinecone:
+                    # prefer session pinecone_store config
+                    pine_store = st.session_state.get("pinecone_store")
+                    if pine_store and getattr(pine_store, "api_key", None):
+                        pine_key = getattr(pine_store, "api_key")
+                        pine_env = getattr(pine_store, "environment", None)
+                        st.info("Using Pinecone configuration from setup.")
+                    else:
+                        # prefer actual environment variables if present
+                        pine_key = os.environ.get("PINECONE_API_KEY") or os.environ.get("PINECONE_KEY") or None
+                        pine_env = os.environ.get("PINECONE_ENV") or os.environ.get("PINECONE_ENVIRONMENT") or None
+                        if pine_key:
+                            st.info("Using Pinecone API key from environment.")
+                        else:
+                            pine_key = st.text_input("Pinecone API Key (required to index)", type="password")
+                            pine_env = st.text_input("Pinecone Environment (e.g. us-east1-gcp)")
+
+                # Guarded indexing action
+                if st.button("🔎 Parse, Embed & Index PDF (Large Parser)"):
+                    # validate Pinecone key if chosen
+                    if use_pinecone and not pine_key:
+                        st.error(
+                            "Pinecone selected but no API key provided. Choose one of:\n\n"
+                            "• Paste your Pinecone API key in the input above,\n"
+                            "• Set environment variable `PINECONE_API_KEY`, or\n"
+                            "• Switch to Local FAISS (in-memory) instead."
+                        )
+                        with st.expander("How to set Pinecone API key"):
+                            st.markdown(
+                                "- **Temporary (current session)**: paste it into the \"Pinecone API Key\" field above.\n"
+                                "- **Persistent (Windows)**: run `setx PINECONE_API_KEY \"<YOUR_KEY>\"` in Powershell/Command Prompt and restart your session.\n"
+                                "- **Persistent (.env)**: add `PINECONE_API_KEY=<YOUR_KEY>` to your `.env` file in the project root (you use python-dotenv)."
+                            )
+                    else:
+                        try:
+                            with st.spinner("Processing and indexing PDF (this may take a while for large docs)..."):
+                                res = process_and_index_pdf(
+                                    pdf_bytes=bytes_data,
+                                    doc_id=os.path.splitext(uploaded_pdf.name)[0],
+                                    use_pinecone=use_pinecone,
+                                    pinecone_api_key=pine_key,
+                                    pine_env=pine_env,
+                                    store_content_in_metadata=store_content_in_metadata,
+                                )
+                                st.success(f"Indexed {len(res['chunks'])} chunks from {res['pages_count']} pages (index_type={res['index_type']}).")
+                                st.session_state["pdf_index_info"] = res
+                                st.session_state["pdf_chunks"] = res["chunks"]
+                                # ensure we stay on PDF Parser tab and show summary area
+                                st.session_state["main_tab"] = "PDF Parser"
+                                # optionally pre-generate a high-level summary (comment/uncomment to auto generate)
+                                # st.session_state["last_pdf_summary"] = summarize_chunks(res["chunks"])
+                        except Exception as e:
+                            st.error(f"Indexing failed: {e}")
+                            st.exception(e)
+
+            else:
+                st.info("Upload a PDF file to use the large-doc parser.")
+
+            # If there is an indexed doc in session, show quick controls
+            if st.session_state.get("pdf_index_info"):
+                st.markdown("---")
+                st.write("Indexed document is available in session. You can summarize or ask questions below.")
+
+        with col_right:
+            if st.session_state.get("pdf_index_info"):
+                idx_info = st.session_state["pdf_index_info"]
+                st.subheader("Indexed Document Overview")
+                st.write(f"Index type: **{idx_info['index_type']}**")
+                st.write(f"Pages: **{idx_info['pages_count']}** — Chunks: **{len(idx_info['chunks'])}**")
+
+                with st.expander("Preview first 6 chunks"):
+                    for c in idx_info["chunks"][:6]:
+                        st.markdown(f"**{c['id']}** — pages {c['start_page']}-{c['end_page']}")
+                        st.text_area(c['id'], value=c['content'][:800], height=120, disabled=True)
+
+                # Summarization: store result in session_state to persist across reruns
+                if st.button("📝 Generate Document Summary (Large Parser)"):
+                    try:
+                        with st.spinner("Summarizing chunks (map-reduce)..."):
+                            summary = summarize_chunks(idx_info["chunks"])
+                            st.session_state["last_pdf_summary"] = summary
+                            st.success("Summary generated and saved to session.")
+                    except Exception as e:
+                        st.error(f"Summarization failed: {e}")
+
+                # display summary if available
+                if st.session_state.get("last_pdf_summary"):
+                    st.subheader("Document Summary")
+                    st.write(st.session_state.get("last_pdf_summary"))
+
+                # RAG Q&A
+                st.subheader("💬 RAG Q&A (Large Parser)")
+                # keep the question persistent as well
+                st.session_state.setdefault("pdf_rag_question", "")
+                question = st.text_area("Ask a question about the indexed document:", height=120, key="pdf_rag_question")
+                top_k = st.slider("Top-k retrieved chunks", 1, 10, 5, key="pdf_rag_topk")
+                if st.button("Get RAG Answer (Large Parser)"):
+                    if not question or not question.strip():
+                        st.warning("Please enter a question.")
+                    else:
+                        try:
+                            with st.spinner("Retrieving top chunks and generating answer..."):
+                                if idx_info["index_type"] == "pinecone":
+                                    pine_idx = idx_info["index"]
+                                    chunks_map = idx_info["chunks"]
+                                    res = rag_answer_with_retrieval_pinecone(pine_idx, question, top_k=top_k, chunks_mapping=chunks_map)
+                                    st.subheader("Answer")
+                                    st.write(res.get("answer", ""))
+                                    if res.get("sources"):
+                                        with st.expander("Retrieved sources"):
+                                            for s in res["sources"]:
+                                                st.write(s)
+                                else:
+                                    # local FAISS: we expect process_and_index_pdf to have returned a FAISS index + chunks mapping
+                                    local_idx = idx_info["index"]
+                                    chunks_map = idx_info["chunks"]
+                                    # If pdf_rag returned embeddings and TF-IDF we can use rag_agent similar to in-memory flow
+                                    # We'll attempt to call rag_answer_with_local_faiss which should implement its own LLM call or return answer+sources
+                                    res = rag_answer_with_local_faiss(local_idx, question, top_k=top_k)
+                                    st.subheader("Answer")
+                                    st.write(res.get("answer", ""))
+                                    if res.get("sources"):
+                                        with st.expander("Retrieved sources"):
+                                            for s in res["sources"]:
+                                                st.write(s)
+                        except Exception as e:
+                            st.error(f"RAG failed: {e}")
+            else:
+                st.info("No indexed document found in session. Upload & index a PDF in the left column first.")
+
+    # Footer
     st.markdown("---")
     st.caption("Local AI Document Parser • Built with Streamlit & Ollama")
 
