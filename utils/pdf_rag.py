@@ -210,17 +210,38 @@ def pinecone_query(index, query_text: str, top_k: int = 5, namespace: str = PINE
 # --- Summarization (map-reduce) ---
 def summarize_chunks(chunks: List[Dict], max_chunk_chars: int = 1800) -> str:
     summarizer = get_summarizer()
-    chunk_texts = [c["content"] for c in chunks if c["content"].strip()]
+    chunk_texts = [c["content"] for c in chunks if c.get("content", "").strip()]
+    
+    if not chunk_texts:
+        return "No content available to summarize."
+    
     chunk_summaries = []
     for txt in chunk_texts:
         truncated = txt[:max_chunk_chars]
-        out = summarizer(truncated, max_length=150, min_length=30, do_sample=False)
-        chunk_summaries.append(out[0]["summary_text"])
+        if not truncated.strip():
+            continue
+        try:
+            out = summarizer(truncated, max_length=150, min_length=30, do_sample=False)
+            if out and isinstance(out, list) and len(out) > 0 and "summary_text" in out[0]:
+                chunk_summaries.append(out[0]["summary_text"])
+        except Exception as e:
+            # Skip chunks that fail to summarize
+            continue
+    
     if not chunk_summaries:
-        return ""
+        return "Unable to generate summary from the provided content."
+    
     concatenated = "\n\n".join(chunk_summaries)
-    final = summarizer(concatenated, max_length=300, min_length=80, do_sample=False)
-    return final[0]["summary_text"]
+    try:
+        final = summarizer(concatenated, max_length=300, min_length=80, do_sample=False)
+        if final and isinstance(final, list) and len(final) > 0 and "summary_text" in final[0]:
+            return final[0]["summary_text"]
+        else:
+            # Return concatenated summaries if final summarization fails
+            return concatenated[:500] + "..."
+    except Exception as e:
+        # Return concatenated summaries if final summarization fails
+        return concatenated[:500] + "..."
 
 # --- RAG QA ---
 def rag_answer_with_retrieval_pinecone(index, question: str, top_k: int = 5, namespace: str = PINECONE_NAMESPACE, chunks_mapping: List[Dict] = None) -> Dict:
