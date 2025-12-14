@@ -239,34 +239,37 @@ def main():
     if css:
         st.markdown(css, unsafe_allow_html=True)
 
-    st.title("📄 Document Parser with Local AI")
-    st.markdown("Upload PDFs and get intelligent analysis with local LLMs (Ollama) + RAG")
+    st.title("🤖 AI Document Parser")
+    st.markdown("Upload documents, get insights, summaries, and answers instantly")
 
     # persistent tab selector using session_state, so it survives reruns (e.g., file upload)
     if "main_tab" not in st.session_state:
-        st.session_state["main_tab"] = "Home"
-    # radio will set st.session_state['main_tab_radio']; reflect into main_tab
-    selected = st.radio("Choose view:", ("Home", "PDF Parser"),
-                        index=0 if st.session_state.get("main_tab", "Home") == "Home" else 1,
-                        horizontal=True, key="main_tab_radio")
-    st.session_state["main_tab"] = selected
+        st.session_state["main_tab"] = "Analyze Resume"
+    
+    st.subheader("What would you like to do?")
+    
+    # Create tab-like buttons using columns
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        if st.button("📄 Analyze Resume", use_container_width=True, type="primary" if st.session_state["main_tab"] == "Analyze Resume" else "secondary"):
+            st.session_state["main_tab"] = "Analyze Resume"
+            st.rerun()
+    
+    with col2:
+        if st.button("📊 Analyze Large PDF", use_container_width=True, type="primary" if st.session_state["main_tab"] == "Analyze Large PDF" else "secondary"):
+            st.session_state["main_tab"] = "Analyze Large PDF"
+            st.rerun()
+    
     current_tab = st.session_state["main_tab"]
 
     # Sidebar: Ollama setup + vector DB selection + chunking options
     with st.sidebar:
-        st.header("🦙 Ollama Local AI (singleton)")
+        st.header("🦙 Ollama Local AI")
         ollama_ready = _ensure_ollama_in_session()
         if ollama_ready:
-            st.success("✅ Ollama singleton loaded into session")
+            st.success("✅ Ollama loaded into session")
             parser_obj = st.session_state.get("ollama_parser")
-            # Determine readiness using likely attributes
-            is_connected = getattr(parser_obj, "is_connected", None)
-            is_ready = getattr(parser_obj, "is_ready", None)
-            ready_flag = bool(is_connected or is_ready or getattr(parser_obj, "connected", False))
-            if ready_flag:
-                st.success("✅ Ollama is ready")
-            else:
-                st.info("Ollama singleton loaded but not currently connected/ready. Start Ollama and ensure a model is installed.")
 
             # show available model selection stored by singleton
             available_models = st.session_state.get("ollama_available_models") or getattr(parser_obj, "available_models", []) or []
@@ -274,24 +277,19 @@ def main():
                 st.write("Available models:")
                 for m in available_models:
                     st.write(f"• {m}")
-                st.info("Model selection is automatic; override in advanced settings if needed.")
             
             # Initialize OllamaRAGRetriever if not already in session
             if "ollama_rag" not in st.session_state:
                 from utils.rag_retriever import OllamaRAGRetriever
                 st.session_state.ollama_rag = OllamaRAGRetriever()
         else:
-            st.error("⚠️ Ollama singleton not found. Make sure your utils module exposes a singleton (e.g., `ollama_singleton` or `OllamaParser`).")
+            print("Ollama singleton not found in utils. Please ensure OllamaParser or similar is defined.")
+            
 
         st.header("🗄️ Vector Database")
-        vector_db_option = st.radio("Choose vector storage:", ["🧠 In-Memory (Local)", "🌲 Pinecone (Cloud)"])
+        vector_db_option = "🧠 In-Memory (Local)"
+        st.info("Using in-memory vector storage (FAISS)")
         pinecone_store = None
-        if vector_db_option.startswith("🌲"):
-            # setup_pinecone_interface should populate session or return store
-            pinecone_store = setup_pinecone_interface()
-            if pinecone_store and getattr(pinecone_store, "is_initialized", False):
-                display_pinecone_stats(pinecone_store)
-                st.session_state["pinecone_store"] = pinecone_store
 
         st.header("📄 Document Processing")
         chunking_strategy = st.selectbox("Chunking strategy:", ["sections", "sliding_window", "pages"])
@@ -303,16 +301,12 @@ def main():
             chunk_size_sentences = None
             overlap_sentences = None
 
-        # Large PDF parser info
-        st.markdown("---")
-        st.subheader("Large PDF parser (for >35 pages)")
-        st.info("📊 Chunking: 3500 characters per chunk with 1000 character overlap")
-        st.write("Choose Pinecone to persist vector data for later queries (recommended for many/large docs).")
+       
 
     # -------------------------
-    # HOME view (keeps your existing flow)
+    #   Resume Parser view (keeps your existing flow)   
     # -------------------------
-    if current_tab == "Home":
+    if current_tab == "Analyze Resume":
         col1, col2 = st.columns([1, 2])
 
         with col1:
@@ -327,14 +321,14 @@ def main():
                     # Check Ollama readiness
                     parser_obj = st.session_state.get("ollama_parser")
                     if not parser_obj or (not getattr(parser_obj, "is_connected", False) and not getattr(parser_obj, "is_ready", False)):
-                        st.error("Ollama not ready. Please start Ollama and install a model.")
+                        print("Ollama not ready. Please start Ollama and install a model.")
                         return
 
                     # Extract text
                     with st.spinner("Extracting text from PDF..."):
                         combined_text, pages = extract_text_from_pdf(uploaded_file)
                         if not combined_text:
-                            st.error("Failed to extract text from PDF")
+                            print("Failed to extract text from PDF")
                             return
                         st.session_state["raw_text"] = combined_text
                         st.session_state["pages"] = pages
@@ -357,8 +351,7 @@ def main():
                             st.session_state["chunks_meta"] = chunks_meta
                             st.success(f"Created {len(raw_chunks)} chunks (smart_chunk_text)")
                         except Exception as e:
-                            st.error(f"Chunking failed: {e}")
-                            # fallback: DocumentChunker if available
+                            # Silently fallback to DocumentChunker if smart_chunk_text fails
                             try:
                                 chunker = DocumentChunker()
                                 fallback = chunker.chunk_by_sections(combined_text)
@@ -368,9 +361,9 @@ def main():
                                     "heading": c.get("title", "Unknown"),
                                     "text": c.get("content", "")
                                 } for i, c in enumerate(fallback)]
-                                st.success("Fallback chunking using DocumentChunker succeeded.")
+                                st.success(f"Created {len(fallback)} chunks (DocumentChunker)")
                             except Exception as e2:
-                                st.error(f"Fallback chunking also failed: {e2}")
+                                print(f"Document chunking failed. Please check the document format.")
                                 return
 
                     # If document small, use blocking sync parse (fast)
@@ -383,7 +376,7 @@ def main():
                     try:
                         if use_streaming:
                             progress_widget = st.progress(0.0)
-                            output_box.info("Processing (live preview shown)...")
+                            output_box.info("Processing ")
                             # Kick off async streaming generator from OllamaParser
                             try:
                                 generator = parser_obj.parse_resume_stream(combined_text, model=None)
@@ -432,7 +425,7 @@ def main():
                                     else:
                                         st.warning("⚠️ Pinecone QA chain setup failed")
                                 else:
-                                    st.error("❌ Failed to upsert to Pinecone")
+                                    print("❌ Failed to upsert to Pinecone")
                         else:
                             # in-memory RAG: build FAISS index using rag_engine
                             try:
@@ -452,7 +445,7 @@ def main():
                             except Exception as e:
                                 st.warning(f"Failed to set up in-memory RAG: {e}")
                     except Exception as e:
-                        st.error("Parsing failed — see details below.")
+                        print("Parsing failed — see details below.")
                         st.exception(e)
 
         # Right column: results and QA
@@ -487,13 +480,13 @@ def main():
                 col_b.metric("Avg Chunk Length", f"{avg_len} chars")
                 col_c.metric("Strategy", chunking_strategy.title())
 
-                with st.expander("🔍 View Document Chunks"):
-                    for i, chunk_text in enumerate(chunks):
-                        meta = st.session_state.get("chunks_meta", [{}])[i] if st.session_state.get("chunks_meta") else {}
-                        st.write(f"**Chunk {i+1}** ({meta.get('heading','text')})")
-                        if meta.get('page'):
-                            st.caption(f"Page: {meta['page']}")
-                        st.text_area(f"chunk_{i+1}", value=chunk_text[:1500], height=140, disabled=True)
+                # with st.expander("🔍 View Document Chunks"):
+                #     for i, chunk_text in enumerate(chunks):
+                #         meta = st.session_state.get("chunks_meta", [{}])[i] if st.session_state.get("chunks_meta") else {}
+                #         st.write(f"**Chunk {i+1}** ({meta.get('heading','text')})")
+                #         if meta.get('page'):
+                #             st.caption(f"Page: {meta['page']}")
+                #         st.text_area(f"chunk_{i+1}", value=chunk_text[:1500], height=140, disabled=True)
 
                 # Raw text view
                 with st.expander("📝 Raw Extracted Text"):
@@ -505,7 +498,17 @@ def main():
                         st.text_area("Combined text", value=st.session_state.get("raw_text", ""), height=300, disabled=True)
 
                 # Raw JSON accordion
-                with st.expander("🔧 View Raw JSON Data (click to expand)", expanded=False):
+                with st.expander("🔧 View Raw JSON Data", expanded=False):
+                    # Download button at the top
+                    try:
+                        full_json = safe_json_dumps(parsed_struct)
+                        st.download_button("💾 Download JSON", data=full_json, file_name="parsed_resume.json", mime="application/json", use_container_width=True)
+                    except Exception:
+                        pass
+                    
+                    st.markdown("---")
+                    
+                    # Display JSON
                     try:
                         st.json(parsed_struct)
                     except Exception:
@@ -514,11 +517,6 @@ def main():
                             st.code(full_json, language="json")
                         except Exception:
                             st.text(str(parsed_struct))
-                    try:
-                        full_json = safe_json_dumps(parsed_struct)
-                        st.download_button("💾 Download full JSON", data=full_json, file_name="parsed_full.json", mime="application/json")
-                    except Exception:
-                        pass
 
                 # If formatted display didn't run, show a quick glance
                 if not displayed:
@@ -559,7 +557,8 @@ def main():
                                         chart_path = generate_radar_chart(list(labels)[:12], list(vals)[:12])
                                         st.image(chart_path, caption="Skill confidence radar")
                         except Exception as e:
-                            st.warning(f"Skill classification failed: {e}")
+                            pass
+                            # st.warning(f"Skill classification failed: {e}")
                 else:
                     st.info("Run parsing to enable skill classification.")
 
@@ -572,7 +571,8 @@ def main():
                     if st.session_state.get("pinecone_qa_ready", False):
                         st.info("Using Pinecone + LangChain")
                     else:
-                        st.info("Using in-memory RAG (FAISS + TF-IDF + Cross-Encoder)")
+                        # st.info("Using RAG (FAISS + TF-IDF + Cross-Encoder)")
+                        pass
 
                     question = st.text_area("Ask a question about the document:", height=80)
                     if st.button("Get AI Analysis"):
@@ -584,7 +584,7 @@ def main():
                                     if st.session_state.get("pinecone_qa_ready", False):
                                         res = st.session_state["pinecone_store"].ask_question(question)
                                         if "error" in res:
-                                            st.error(res["error"])
+                                            print(res["error"])
                                         else:
                                             st.write(res.get("answer", ""))
                                             # show sources if present
@@ -647,21 +647,22 @@ def main():
                                                         st.markdown(f"**{ch.get('id')}** — {ch.get('heading')}")
                                                         st.text_area(f"chunk_{ch.get('id')}", value=ch.get("text","")[:1200], height=140, disabled=True)
                                         else:
-                                            st.error("In-memory RAG not initialized.")
+                                            pass
+                                            # print("In-memory RAG not initialized.")
                                 except Exception as e:
-                                    st.error(f"QA failed: {e}")
+                                    print(f"QA failed: {e}")
             else:
                 st.info("Upload a PDF to parse and analyze.")
                 with st.expander("💡 Vector DB options"):
-                    st.write("🧠 In-memory: fast, ephemeral.")
-                    st.write("🌲 Pinecone: persistent, multi-document, requires keys.")
+                    st.write("🧠 FAISS: in-memory, fast, ephemeral.")
+                    # st.write("🌲 Pinecone: persistent, multi-document, requires keys.")
 
     # -------------------------
     # PDF PARSER view (large-document flow)
     # -------------------------
     else:
-        st.header("📚 PDF Parser — Large Documents & RAG")
-        st.markdown("This tab is optimized for long PDFs (≥ ~35 pages). It chunks by pages, creates embeddings, and indexes into Pinecone or a local FAISS index. You can generate a document summary and ask RAG questions.")
+        st.header("📚 PDF Parser — Large Documents")
+        st.markdown("Perfect for analyzing large documents! Upload your PDF and get an AI-powered summary or ask questions about the content.")
 
         col_left, col_right = st.columns([1, 2])
 
@@ -682,35 +683,20 @@ def main():
                 else:
                     st.write("Could not detect page count (file may be corrupted).")
 
-                st.subheader("Indexing options")
-                use_pinecone = st.radio("Index to:", ["🌲 Pinecone (recommended)", "🧠 Local FAISS (in-memory)"]) == "🌲 Pinecone (recommended)"
-                store_content_in_metadata = st.checkbox("Store chunk content in Pinecone metadata (convenient, increases storage)", value=False)
+                # st.subheader("Indexing options")
+                use_pinecone = False
+                # st.info("Using local FAISS in-memory index")
+                store_content_in_metadata = False
 
-                # Optional Pinecone inputs if not already set via setup_pinecone_interface
+                # Use local FAISS only
                 pine_key = None
                 pine_env = None
-                if use_pinecone:
-                    # prefer session pinecone_store config
-                    pine_store = st.session_state.get("pinecone_store")
-                    if pine_store and getattr(pine_store, "api_key", None):
-                        pine_key = getattr(pine_store, "api_key")
-                        pine_env = getattr(pine_store, "environment", None)
-                        st.info("Using Pinecone configuration from setup.")
-                    else:
-                        # prefer actual environment variables if present
-                        pine_key = os.environ.get("PINECONE_API_KEY") or os.environ.get("PINECONE_KEY") or None
-                        pine_env = os.environ.get("PINECONE_ENV") or os.environ.get("PINECONE_ENVIRONMENT") or None
-                        if pine_key:
-                            st.info("Using Pinecone API key from environment.")
-                        else:
-                            pine_key = st.text_input("Pinecone API Key (required to index)", type="password")
-                            pine_env = st.text_input("Pinecone Environment (e.g. us-east1-gcp)")
 
                 # Guarded indexing action
-                if st.button("🔎 Parse, Embed & Index PDF (Large Parser)"):
+                if st.button("🔎 Click to Parse"):
                     # validate Pinecone key if chosen
                     if use_pinecone and not pine_key:
-                        st.error(
+                        print(
                             "Pinecone selected but no API key provided. Choose one of:\n\n"
                             "• Paste your Pinecone API key in the input above,\n"
                             "• Set environment variable `PINECONE_API_KEY`, or\n"
@@ -724,7 +710,7 @@ def main():
                             )
                     else:
                         try:
-                            with st.spinner("Processing and indexing PDF (this may take a while for large docs)..."):
+                            with st.spinner("Processing..."):
                                 res = process_and_index_pdf(
                                     pdf_bytes=bytes_data,
                                     doc_id=os.path.splitext(uploaded_pdf.name)[0],
@@ -736,16 +722,17 @@ def main():
                                 st.success(f"Indexed {len(res['chunks'])} chunks from {res['pages_count']} pages (index_type={res['index_type']}).")
                                 st.session_state["pdf_index_info"] = res
                                 st.session_state["pdf_chunks"] = res["chunks"]
-                                # ensure we stay on PDF Parser tab and show summary area
-                                st.session_state["main_tab"] = "PDF Parser"
+                                # ensure we stay on Analyze Large PDF tab and show summary area
+                                st.session_state["main_tab"] = "Analyze Large PDF"
                                 # optionally pre-generate a high-level summary (comment/uncomment to auto generate)
                                 # st.session_state["last_pdf_summary"] = summarize_chunks(res["chunks"])
                         except Exception as e:
-                            st.error(f"Indexing failed: {e}")
+                            print(f"Indexing failed: {e}")
                             st.exception(e)
 
             else:
-                st.info("Upload a PDF file to use the large-doc parser.")
+                pass
+                # st.info("Upload a PDF file to use the large-doc parser.")
 
             # If there is an indexed doc in session, show quick controls
             if st.session_state.get("pdf_index_info"):
@@ -759,20 +746,21 @@ def main():
                 st.write(f"Index type: **{idx_info['index_type']}**")
                 st.write(f"Pages: **{idx_info['pages_count']}** — Chunks: **{len(idx_info['chunks'])}**")
 
-                with st.expander("Preview first 6 chunks"):
-                    for c in idx_info["chunks"][:6]:
-                        st.markdown(f"**{c['id']}** — pages {c['start_page']}-{c['end_page']}")
-                        st.text_area(c['id'], value=c['content'][:800], height=120, disabled=True)
+                # with st.expander("Preview first 6 chunks"):
+                #     for c in idx_info["chunks"][:6]:
+                #         st.markdown(f"**{c['id']}** — pages {c['start_page']}-{c['end_page']}")
+                #         st.text_area(c['id'], value=c['content'][:800], height=120, disabled=True)
 
                 # Summarization: store result in session_state to persist across reruns
-                if st.button("📝 Generate Document Summary (Large Parser)"):
+                if st.button("📝 Generate Document Summary"):
                     try:
-                        with st.spinner("Summarizing chunks (map-reduce)..."):
+                        with st.spinner("Summarizing"):
                             summary = summarize_chunks(idx_info["chunks"])
                             st.session_state["last_pdf_summary"] = summary
-                            st.success("Summary generated and saved to session.")
+                            st.success("Summary generated.")
                     except Exception as e:
-                        st.error(f"Summarization failed: {e}")
+                        pass
+                        # print(f"{e}")
 
                 # display summary if available
                 if st.session_state.get("last_pdf_summary"):
@@ -780,12 +768,12 @@ def main():
                     st.write(st.session_state.get("last_pdf_summary"))
 
                 # RAG Q&A
-                st.subheader("💬 RAG Q&A (Large Parser)")
+                st.subheader("💬Q&A")
                 # keep the question persistent as well
                 st.session_state.setdefault("pdf_rag_question", "")
                 question = st.text_area("Ask a question about the indexed document:", height=120, key="pdf_rag_question")
-                top_k = st.slider("Top-k retrieved chunks", 1, 10, 5, key="pdf_rag_topk")
-                if st.button("Get RAG Answer (Large Parser)"):
+                top_k = st.slider("", 1, 10, 5, key="pdf_rag_topk")
+                if st.button("Get Answer"):
                     if not question or not question.strip():
                         st.warning("Please enter a question.")
                     else:
@@ -815,9 +803,11 @@ def main():
                                             for s in res["sources"]:
                                                 st.write(s)
                         except Exception as e:
-                            st.error(f"RAG failed: {e}")
+                            pass
+                            # print(f"RAG failed: {e}")
             else:
-                st.info("No indexed document found in session. Upload & index a PDF in the left column first.")
+                pass
+                # st.info("No indexed document found in session. Upload & index a PDF in the left column first.")
 
     # Footer
     st.markdown("---")
