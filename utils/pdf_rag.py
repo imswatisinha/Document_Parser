@@ -208,18 +208,17 @@ def pinecone_query(index, query_text: str, top_k: int = 5, namespace: str = PINE
     return matches
 
 # --- Summarization (map-reduce) ---
-def summarize_chunks(chunks: List[Dict], max_chunk_chars: int = 1800) -> str:
+def summarize_chunks(chunks: List[Dict], max_chunk_chars: int = 1800, audio = False) -> str:
     summarizer = get_summarizer()
 
     # summarization for audio data
-    for data in chunks:
-        if "audio_transcript" in data.keys:
-            try:
-                out = summarizer(data["audio_transcript"], max_length = 300, min_length = 10, do_sample=False)
-                res = out[0]["summary_text"]
-                return res
-            except Exception as e:
-                return None
+    if audio:
+        try:
+            out = summarizer(chunks[0]["audio_transcript"], max_length = 300, min_length = 10, do_sample=False)
+            res = out[0]["summary_text"]
+            return res
+        except Exception as e:
+            return None
     
     chunk_texts = [c["content"] for c in chunks if c.get("content", "").strip()]
     
