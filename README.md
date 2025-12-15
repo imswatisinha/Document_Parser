@@ -1,9 +1,9 @@
-# 📄 AI Document & Audio Processing Assistant
+# 📄 AI Document Parsing and Information Retrieval
 
-This application is a feature-rich platform built with **Streamlit**
-that utilizes local and cloud-based Large Language Models (LLMs) to
-perform advanced processing on various file types, including PDF
-documents and audio files.
+This app parses resumes/documents using local LLMs via Ollama by default. It 
+extracts structured info and exports validated JSON, including per-section 
+downloads and processes and retrieves information from documents such as 
+Resumes in PDF, multi-page PDFs and audio.
 
 It prioritizes local LLMs via **Ollama** for privacy and performance,
 while offering robust RAG (Retrieval-Augmented Generation) capabilities
@@ -45,6 +45,24 @@ output.
 -   **AI Summarization:** Generates concise summaries of the full audio
     transcript using the LLM.
 
+### 🔒 Privacy & Benefits
+- **Local AI Processing**: Your documents never leave your machine for AI processing
+- **Persistent Storage**: Store documents in Pinecone for long-term access
+- **No Repeated Setup**: Configure API key once, use seamlessly
+- **Cost Effective**: Only pay for Pinecone storage, Ollama is free
+
+## 🎮 Usage
+
+### Upload Documents
+1. Go to the **"📤 Upload Documents"** tab
+2. Drag & drop or browse for your files
+3. Click **"🔄 Process Documents"**
+
+### Ask Questions  
+1. Go to the **"❓ Ask Questions"** tab
+2. Type your question about the uploaded documents
+3. Get AI-powered answers with source references
+
 ## ⚙️ Setup and Installation
 
 ### Prerequisites
@@ -82,10 +100,54 @@ pip install -r requirements.txt
 
 ``` bash
 cp .env.example .env
+Update `.env` file with your Pinecone API key:
+```env
+PINECONE_API_KEY=your_actual_api_key_here
+Get your free API key at [pinecone.io](https://pinecone.io)
 ```
-
+```
 Edit the `.env` file with your **Pinecone** and preferred **Ollama**
 model settings.
+```
+
+## 📁 Project Structure
+```
+├── app.py                      # Main Streamlit UI and orchestration.
+├── readme.md   
+├── parser/
+│   ├── rag_agent.py            # RAG Agent: Assembles prompt, calls LLM, and generates the final answer.
+│   ├── semantic_classifier.py  # Zero-shot classification for skills and visual radar chart generation.
+│   ├── chunking.py             # Core logic for smart document splitting/chunking (new implementation).
+│   └── rag_engine.py           # Core RAG retrieval logic (embedding, indexing, vector search, re-ranking).
+├── utils/
+│   ├── audio_transcribe.py     # Transcribes audio files using a local Whisper model.
+│   ├── document_chunker.py     # Fallback utility for structured document chunking (legacy logic).
+│   ├── json_formatter.py       # Coerces and validates raw LLM output against a standard JSON schema.
+│   ├── ollama_parser.py        # Handles synchronous/asynchronous API calls to the local Ollama service.
+│   ├── ollama_singleton.py     # Manages the single, thread-safe instance of the Ollama client.
+│   ├── pdf_rag.py              # High-level RAG integration and index management (Pinecone/Faiss setup).
+│   ├── pdf_parser.py           # Utility for extracting raw text from PDF files.
+│   ├── normalizers.py          # Low-level utilities for safe string/type coercion.
+│   └── pinecone_vector_store.py# Pinecone vector database client and utility functions.
+├── recommend_model.py          # Standalone script to test and recommend Ollama models.
+├── .env.example                # Template for environment configuration.
+└── requirements.txt            # Python dependencies.
+├──.............                # Some additional metadata        
+```
+
+## Troubleshooting
+
+**"Pinecone API key not configured"**
+- Update your `.env` file with a valid Pinecone API key
+
+**"Ollama connection failed"**
+- Make sure Ollama is running: `ollama serve`
+- Check if the model is available: `ollama list`
+
+**App won't start**
+- Check all dependencies are installed: `pip install -r requirements.txt`
+- Verify Python version compatibility (3.8+)
+
 
 ## 🚀 Running the Application
 
