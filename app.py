@@ -532,36 +532,38 @@ def main():
                 # Semantic classification
                 # Semantic classification (robust)
                 st.subheader("📊 Semantic Skill Classification")
-                if st.session_state.get("raw_text"):
-                    with st.spinner("Running zero-shot classification..."):
-                        try:
-                            # get labels from session or CSV
+                def spider_plot():
+                    if st.session_state.get("raw_text"):
+                        with st.spinner("Running zero-shot classification..."):
                             try:
-                                from parser.semantic_classifier import load_skill_labels_from_csv
-                                labels_to_use = st.session_state.get("candidate_labels") or load_skill_labels_from_csv()
-                            except Exception:
-                                labels_to_use = st.session_state.get("candidate_labels", [])
-
-                            if not labels_to_use:
-                                st.warning("No candidate labels available. Please add `assets/skills.csv` or upload labels in the sidebar.")
-                            else:
-                                scores = zero_shot_skill_scores(st.session_state["raw_text"], labels_to_use)
-                                if not scores or not scores.get("labels"):
-                                    st.warning("Classifier returned no labels — check model availability or loader.")
+                                # get labels from session or CSV
+                                try:
+                                    from parser.semantic_classifier import load_skill_labels_from_csv
+                                    labels_to_use = st.session_state.get("candidate_labels") or load_skill_labels_from_csv()
+                                except Exception:
+                                    labels_to_use = st.session_state.get("candidate_labels", [])
+    
+                                if not labels_to_use:
+                                    st.warning("No candidate labels available. Please add `assets/skills.csv` or upload labels in the sidebar.")
                                 else:
-                                    skill_pairs = list(zip(scores.get("labels", []), scores.get("scores", [])))
-                                    skill_pairs.sort(key=lambda x: x[1], reverse=True)
-                                    st.table([{"Skill": s, "Confidence": f"{p:.2f}"} for s, p in skill_pairs[:50]])
-                                    if skill_pairs:
-                                        labels, vals = zip(*skill_pairs)
-                                        chart_path = generate_radar_chart(list(labels)[:12], list(vals)[:12])
-                                        st.image(chart_path, caption="Skill confidence radar")
-                        except Exception as e:
-                            pass
-                            # st.warning(f"Skill classification failed: {e}")
-                else:
-                    st.info("Run parsing to enable skill classification.")
+                                    scores = zero_shot_skill_scores(st.session_state["raw_text"], labels_to_use)
+                                    if not scores or not scores.get("labels"):
+                                        st.warning("Classifier returned no labels — check model availability or loader.")
+                                    else:
+                                        skill_pairs = list(zip(scores.get("labels", []), scores.get("scores", [])))
+                                        skill_pairs.sort(key=lambda x: x[1], reverse=True)
+                                        st.table([{"Skill": s, "Confidence": f"{p:.2f}"} for s, p in skill_pairs[:50]])
+                                        if skill_pairs:
+                                            labels, vals = zip(*skill_pairs)
+                                            chart_path = generate_radar_chart(list(labels)[:12], list(vals)[:12])
+                                            return chart_path
+                            except Exception as e:
+                                pass
+                                # st.warning(f"Skill classification failed: {e}")
+                    else:
+                        st.info("Run parsing to enable skill classification.")
 
+                st.image(spider_plot(), caption = "Skill Confidence Radar")
 
                 # Q&A
                 qa_ready = st.session_state.get("pinecone_qa_ready", False) or st.session_state.get("in_memory_rag_ready", False)
