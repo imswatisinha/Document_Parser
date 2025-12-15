@@ -1,188 +1,77 @@
-# Resume Parser (Local LLM First, Fallback to Cloud)
+# 📄 AI Document & Audio Processing Assistant
 
-This app parses resumes/documents using local LLMs via Ollama by default, with automatic fallback to OpenAI and then Gemini if needed. It extracts structured info and exports validated JSON, including per-section downloads.
+This application is a feature-rich platform built with **Streamlit** that utilizes local and cloud-based Large Language Models (LLMs) to perform advanced processing on various file types, including PDF documents and audio files.
 
-## What's new in this update
+It prioritizes local LLMs via **Ollama** for privacy and performance, while offering robust RAG (Retrieval-Augmented Generation) capabilities and essential data normalization to ensure high-quality, structured output.
 
-- Robust normalization and validation of model outputs to a standard JSON schema
-- Automatic provider fallback chain: Ollama → OpenAI → Gemini → offline
-- Safer string handling preventing `'dict' object has no attribute lower'` errors
-- Chunk summaries and enhanced chunk metadata
-- Download buttons for full JSON and per-section files (experience, education, skills, chunks, summary)
+## ✨ Key Features
 
-## Root cause of `'dict' object has no attribute lower'`
+### 🧠 AI Document Parsing
+* **Local-First Processing:** Uses a local LLM via **Ollama** (e.g., `llama3.2:3b`, `phi3:mini`) to parse documents, ensuring **data privacy** by default.
+* **Robust Fallback Chain:** Automatically falls back to commercial providers (OpenAI, Gemini) if the local Ollama connection fails, ensuring high reliability.
+* **Structured JSON Output:** Extracts complex data (like résumés or reports) into a consistent, validated JSON schema.
+* **Skill Classification:** Utilizes a custom keyword classifier (`keyword_classifier.py`) to categorize and score skills within the document.
 
-Some parts of the code performed string-only operations (like `.lower()`) on values that sometimes arrived as dicts or lists from varying model responses. This happened especially in provenance checks and post-processing. We fixed it by:
+### 🔍 Retrieval-Augmented Generation (RAG)
+* **Intelligent Q&A:** Index large PDF documents using advanced chunking, vector embeddings, and RAG to answer complex, context-specific questions. 
+* **Vector Store Options:** Supports both **Pinecone** (for persistent, cloud-based RAG) and a **Local Faiss Index** (for in-session, zero-setup RAG).
+* **Smart Chunking:** Employs optimized document chunking (`document_chunker.py`) to prepare documents for embedding, improving retrieval accuracy.
 
-- Adding safe guards that coerce values to strings before calling `.lower()`
-- Centralizing output normalization in `utils/normalizers.py` with `safe_extract_text`, `extract_json_block`, and `validate_and_normalize`
-- Ensuring every parsing path returns a validated schema with correct types
+### 🎧 Audio & Media Processing
+* **Audio Transcription:** Transcribes uploaded audio files using a local **Whisper** model (via `transformers` pipeline).
+* **AI Summarization:** Generates concise summaries of the full audio transcript using the LLM.
 
-## Standard JSON schema
+## ⚙️ Setup and Installation
 
-```json
-{
-  "summary": "str or null",
-  "experience": [{
-    "title": "",
-    "company_name": "",
-    "location": "str|null",
-    "start_time": "str|null",
-    "end_time": "str|null",
-    "summary": "str|null"
-  }],
-  "education": [{
-    "institution": "",
-    "degree": "str|null",
-    "year": "str|null",
-    "location": "str|null",
-    "gpa": "str|null"
-  }],
-  "skills": ["str", ...],
-  "technologies": ["str", ...],
-  "tags": ["str", ...],
-  "chunks": [{
-    "chunk_id": 0,
-    "text": "",
-    "summary": "str|null",
-    "page": 1,
-    "start_char": 0,
-    "end_char": 100
-  }],
-  "provider": "ollama|openai|gemini|offline",
-  "parsing_method": "model|offline_basic",
-  "parsing_time": "YYYY-MM-DDTHH:MM:SSZ"
-}
-```
+### Prerequisites
 
-## How the fallback works
+1.  **Python 3.8+**
+2.  **Ollama:** Must be installed and running locally.
+    * Download and install from [Ollama Website](https://ollama.com/).
+    * Run the service: `ollama serve`
+    * Pull a model (e.g., `llama3.2:3b`): `ollama pull llama3.2:3b`
 
-1. Try Ollama (local). If it errors or returns invalid JSON, we attempt to normalize it.
-2. If still invalid, fallback to OpenAI if `OPENAI_API_KEY` is present.
-3. If OpenAI fails or no key, fallback to Gemini if `GEMINI_API_KEY` or `GOOGLE_API_KEY` is present.
-4. If all fail, return an offline minimal structure with warnings.
+### Installation Steps
 
-## Environment variables
+1.  **Clone the Repository**
 
-- `OLLAMA_BASE_URL` (default `http://localhost:11434`)
-- `OPENAI_API_KEY` (optional fallback)
-- `OPENAI_MODEL` (default `gpt-4o-mini`)
-- `GEMINI_API_KEY` or `GOOGLE_API_KEY` (optional fallback)
-- `GEMINI_MODEL` (default `gemini-1.5-flash`)
+    ```bash
+    git clone [your_repo_url]
+    cd Document_Parser
+    ```
 
-## Run locally
+2.  **Create and Activate Environment**
 
-1. Ensure Python environment uses only packages from `requirements.txt`.
-2. Start Ollama and have a model: `ollama pull llama3.2:3b`
-3. Optionally set API keys in `.env` for fallbacks.
-4. Run:
+    ```bash
+    # Create environment (optional but recommended)
+    python -m venv venv
+    
+    # Activate (macOS/Linux)
+    source venv/bin/activate
+    
+    # Activate (Windows)
+    .\venv\Scripts\activate
+    ```
+
+3.  **Install Dependencies**
+
+    ```bash
+    pip install -r requirements.txt
+    ```
+
+4.  **Configure Environment Variables**
+
+    Copy the example file and fill in your details:
+
+    ```bash
+    cp .env.example .env
+    ```
+
+    Edit the new `.env` file with your **Pinecone** and preferred **Ollama** model settings.
+
+## 🚀 Running the Application
+
+Start the Streamlit web application from the root directory:
 
 ```bash
 streamlit run app.py
-```
-
-Upload a PDF resume and click “Extract & Parse”. You’ll see provider info and download buttons for full JSON and per-section JSONs.
-
-## Testing instructions
-
-- Verify Ollama: `ollama list` (and optionally `ollama run <model>`)
-- `streamlit run app.py`
-- Upload a sample resume and click "Extract & Parse"
-- Confirm UI shows `Parsed using: ollama` (or fallback) and that the six download buttons produce valid JSON
-- Remove OpenAI/Gemini keys to test offline fallback behavior
-
-# 📄 AI Document Processing Assistant
-
-## 🎯 Overview
-A simplified document processing application that uses:
-- **Ollama/Llama** for local AI processing
-- **Pinecone** for vector storage and retrieval  
-- **Streamlit** for clean, intuitive interface
-
-## ✨ Features
-- **Simple Upload**: Just drag & drop documents (PDF, DOCX, TXT)
-- **Smart Processing**: Automatic chunking and embedding generation
-- **Ask Questions**: Natural language Q&A about your documents
-- **Persistent Storage**: Documents stored in Pinecone cloud database
-- **No API Keys Required from Users**: Configure once in .env file
-
-## 🚀 Quick Setup
-
-### 1. Install Dependencies
-```bash
-pip install -r requirements.txt
-```
-
-### 2. Setup Ollama
-```bash
-# Install and start Ollama
-ollama serve
-
-# Pull the required model
-ollama pull llama3.2:3b
-```
-
-### 3. Configure Environment
-Update `.env` file with your Pinecone API key:
-```env
-PINECONE_API_KEY=your_actual_api_key_here
-```
-Get your free API key at [pinecone.io](https://pinecone.io)
-
-### 4. Run the App
-```bash
-streamlit run app.py
-```
-
-## 🎮 Usage
-
-### Upload Documents
-1. Go to the **"📤 Upload Documents"** tab
-2. Drag & drop or browse for your files
-3. Click **"🔄 Process Documents"**
-
-### Ask Questions  
-1. Go to the **"❓ Ask Questions"** tab
-2. Type your question about the uploaded documents
-3. Get AI-powered answers with source references
-
-## 🔧 Configuration
-
-The app automatically loads settings from `.env`:
-- `PINECONE_API_KEY`: Your Pinecone API key (required)
-- `PINECONE_ENVIRONMENT`: Pinecone region (default: us-east-1) 
-- `PINECONE_INDEX_NAME`: Index name (default: ai-documents)
-- `OLLAMA_MODEL`: AI model (default: llama3.2:3b)
-
-## 🆘 Troubleshooting
-
-**"Pinecone API key not configured"**
-- Update your `.env` file with a valid Pinecone API key
-
-**"Ollama connection failed"**
-- Make sure Ollama is running: `ollama serve`
-- Check if the model is available: `ollama list`
-
-**App won't start**
-- Check all dependencies are installed: `pip install -r requirements.txt`
-- Verify Python version compatibility (3.8+)
-
-## 📁 Project Structure
-```
-├── app.py                 # Main Streamlit application
-├── utils/
-│   ├── pinecone_vector_store.py    # Pinecone integration
-│   ├── document_chunker.py         # Document processing  
-│   └── llm_parser.py              # Ollama integration
-├── .env                   # Environment configuration
-└── requirements.txt       # Python dependencies
-```
-
-## 🔒 Privacy & Benefits
-- **Local AI Processing**: Your documents never leave your machine for AI processing
-- **Persistent Storage**: Store documents in Pinecone for long-term access
-- **No Repeated Setup**: Configure API key once, use seamlessly
-- **Cost Effective**: Only pay for Pinecone storage, Ollama is free
-
----
-🎉 **Ready to process documents with AI!**
