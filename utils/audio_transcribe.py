@@ -27,8 +27,8 @@ def audio_transcribe(audio_file: io.BytesIO) -> str:
                 task = "automatic-speech-recognition",
                 model = "openai/whisper-small",
                 device = 0,
-                chunk_length_s = 60,
-                batch_size = 100
+                chunk_length_s = 30,
+                batch_size = 10
             )
 
             res = audio_pipeline(inputs = {"array": audio_data, "sampling_rate" : sampling_rate})
@@ -45,3 +45,4 @@ def audio_transcribe(audio_file: io.BytesIO) -> str:
             
     except Exception as e:
         return None
+
