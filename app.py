@@ -799,7 +799,7 @@ def main():
                 # keep the question persistent as well
                 st.session_state.setdefault("pdf_rag_question", "")
                 question = st.text_area("Ask a question about the indexed document:", height=120, key="pdf_rag_question")
-                top_k = st.slider("", 1, 10, 5, key="pdf_rag_topk")
+                top_k = st.slider("Select Top K Value", 1, 10, 5, key="pdf_rag_topk")
                 if st.button("Get Answer"):
                     if not question or not question.strip():
                         st.warning("Please enter a question.")
