@@ -844,7 +844,7 @@ def main():
                     try:
                         with st.spinner("Generating Audio Summary"):
                             
-                            summary = summarize_chunks([{"audio_transcript": st.session_state.get("Audio_Transcription"}], audio = True)
+                            summary = summarize_chunks([{"audio_transcript": st.session_state.get("Audio_Transcription")}], audio = True)
                             st.session_state['Audio_summary'] = summary
                             st.success("Summary generated")
                     except Exception as e:
