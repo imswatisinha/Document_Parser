@@ -214,7 +214,7 @@ def summarize_chunks(chunks: List[Dict], max_chunk_chars: int = 1800, audio = Fa
     # summarization for audio data
     if audio:
         try:
-            out = summarizer(chunks[0]["audio_transcript"], max_length = 300, min_length = 10, do_sample=False)
+            out = summarizer(chunks[0]["audio_transcript"], max_length = 300, min_length = 50, do_sample=False, truncation = True)
             res = out[0]["summary_text"]
             return res
         except Exception as e:
